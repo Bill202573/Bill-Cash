@@ -1,40 +1,155 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseUrl     = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
+  throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Type definitions for our database schema
-export interface Patient {
-  id: string
-  name: string
-  cpf: string
-  gender: 'M' | 'F'
-  marital_status?: string
-  profession?: string
-  street?: string
-  number?: string
-  complement?: string
-  neighborhood?: string
-  phone?: string
-  created_at: string
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface Transaction {
+  id:          string;
+  description: string;
+  amount:      number;
+  type:        'income' | 'expense';
+  category:    string;
+  date:        string;       // YYYY-MM-DD
+  account:     string;
+  user:        string;
+  created_at?: string;
 }
 
-export interface Appointment {
-  id: string
-  patient_id: string
-  professional_id: string
-  appointment_date: string
-  appointment_time: string
-  duration_minutes: number
-  procedure: string
-  status: 'scheduled' | 'checked_in' | 'in_progress' | 'completed' | 'cancelled'
-  observations?: string
-  whatsapp_confirmed: boolean
-  created_at: string
+export interface CreditCard {
+  id:           string;
+  name:         string;
+  last_digits:  string;
+  current_bill: number;
+  limit:        number;
+  due_date:     string;
+  color:        string;
+  created_at?:  string;
 }
+
+export type AccountType = 'checking' | 'savings' | 'investment' | 'wallet';
+
+export interface Account {
+  id:           string;
+  name:         string;
+  type:         AccountType;
+  balance:      number;
+  color:        string;
+  institution?: string;
+  created_at?:  string;
+}
+
+export type DebtType = 'credit_card' | 'personal_loan' | 'financing' | 'overdraft' | 'other';
+
+export interface Debt {
+  id:              string;
+  name:            string;
+  type:            DebtType;
+  total_amount:    number;
+  remaining:       number;
+  interest_rate:   number;
+  monthly_payment: number;
+  due_date?:       string;
+  notes?:          string;
+  created_at?:     string;
+}
+
+export interface BudgetGoal {
+  id:       string;
+  category: string;
+  month:    string;   // YYYY-MM
+  limit:    number;
+  created_at?: string;
+}
+
+// ─── Categories ───────────────────────────────────────────────────────────────
+
+export const EXPENSE_CATEGORIES = [
+  'Alimentação',
+  'Moradia',
+  'Transporte',
+  'Saúde',
+  'Educação',
+  'Lazer',
+  'Vestuário',
+  'Beleza',
+  'Pet',
+  'Assinaturas',
+  'Impostos',
+  'Seguros',
+  'Investimentos',
+  'Doações',
+  'Outros',
+] as const;
+
+export const INCOME_CATEGORIES = [
+  'Salário',
+  'Freelance',
+  'Investimentos',
+  'Aluguel',
+  'Presente',
+  'Reembolso',
+  'Outros',
+] as const;
+
+export const CATEGORY_COLORS: Record<string, string> = {
+  'Alimentação':   'hsl(152, 60%, 48%)',
+  'Moradia':       'hsl(220, 70%, 55%)',
+  'Transporte':    'hsl(38, 92%, 55%)',
+  'Saúde':         'hsl(340, 65%, 55%)',
+  'Educação':      'hsl(200, 70%, 55%)',
+  'Lazer':         'hsl(270, 60%, 55%)',
+  'Vestuário':     'hsl(15, 80%, 55%)',
+  'Beleza':        'hsl(320, 60%, 55%)',
+  'Pet':           'hsl(100, 50%, 48%)',
+  'Assinaturas':   'hsl(190, 60%, 48%)',
+  'Impostos':      'hsl(0, 55%, 50%)',
+  'Seguros':       'hsl(240, 50%, 55%)',
+  'Investimentos': 'hsl(152, 50%, 40%)',
+  'Doações':       'hsl(30, 70%, 55%)',
+  'Outros':        'hsl(215, 15%, 55%)',
+  'Salário':       'hsl(152, 60%, 48%)',
+  'Freelance':     'hsl(200, 65%, 50%)',
+  'Aluguel':       'hsl(38, 80%, 50%)',
+  'Presente':      'hsl(320, 55%, 52%)',
+  'Reembolso':     'hsl(170, 55%, 48%)',
+};
+
+// ─── Account types ────────────────────────────────────────────────────────────
+
+export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  checking:   'Conta Corrente',
+  savings:    'Poupança',
+  investment: 'Investimentos',
+  wallet:     'Carteira',
+};
+
+// ─── Card colors ──────────────────────────────────────────────────────────────
+
+export const CARD_COLORS = [
+  { label: 'Roxo',    value: 'from-purple-600 to-purple-800' },
+  { label: 'Laranja', value: 'from-orange-500 to-orange-700' },
+  { label: 'Azul',    value: 'from-blue-600 to-blue-800' },
+  { label: 'Verde',   value: 'from-green-600 to-green-800' },
+  { label: 'Rosa',    value: 'from-pink-500 to-pink-700' },
+  { label: 'Cinza',   value: 'from-slate-600 to-slate-800' },
+  { label: 'Teal',    value: 'from-teal-500 to-teal-700' },
+  { label: 'Índigo',  value: 'from-indigo-600 to-indigo-800' },
+];
+
+// ─── Debt type labels ─────────────────────────────────────────────────────────
+
+export const DEBT_TYPE_LABELS: Record<DebtType, string> = {
+  credit_card:   'Cartão de Crédito',
+  personal_loan: 'Empréstimo Pessoal',
+  financing:     'Financiamento',
+  overdraft:     'Cheque Especial',
+  other:         'Outro',
+};
