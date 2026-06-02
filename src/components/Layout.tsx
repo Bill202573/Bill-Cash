@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ArrowLeftRight, CreditCard, Target,
-  Lightbulb, Wallet, FileText, Bot, Menu, X,
+  Lightbulb, Wallet, FileText, Bot, Settings, Menu, X,
 } from 'lucide-react';
 
 interface LayoutProps { children: ReactNode }
@@ -16,7 +16,8 @@ const NAV = [
   { path: '/orcamento',    icon: Target,          label: 'Orçamento'     },
   { path: '/contas',       icon: Wallet,          label: 'Contas'        },
   { path: '/insights',     icon: Lightbulb,       label: 'Insights'      },
-  { path: '/assistente',   icon: Bot,             label: 'Assistente IA', highlight: true },
+  { path: '/assistente',    icon: Bot,      label: 'Assistente IA',  highlight: true },
+  { path: '/configuracoes', icon: Settings, label: 'Configurações' },
 ];
 
 export function Layout({ children }: LayoutProps) {

@@ -11,6 +11,7 @@ import Insights from '@/pages/Insights';
 import Accounts from '@/pages/Accounts';
 import FixedBills from '@/pages/FixedBills';
 import Assistente from '@/pages/Assistente';
+import Configuracoes from '@/pages/Configuracoes';
 import NotFound from '@/pages/NotFound';
 
 const queryClient = new QueryClient({
@@ -30,8 +31,9 @@ const App = () => (
           <Route path="/insights"     element={<Layout><Insights     /></Layout>} />
           <Route path="/contas"       element={<Layout><Accounts     /></Layout>} />
           <Route path="/contas-fixas" element={<Layout><FixedBills   /></Layout>} />
-          <Route path="/assistente"   element={<Layout><Assistente   /></Layout>} />
-          <Route path="*"             element={<NotFound />} />
+          <Route path="/assistente"    element={<Layout><Assistente    /></Layout>} />
+          <Route path="/configuracoes" element={<Layout><Configuracoes /></Layout>} />
+          <Route path="*"              element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
