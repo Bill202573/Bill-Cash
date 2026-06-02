@@ -1,11 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl     = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
-}
+// Supabase anon key is a PUBLIC key — safe to have in client-side code.
+// RLS policies on the database protect sensitive data.
+const supabaseUrl     = 'https://jzonnecthimbvdeutsft.supabase.co';
+const supabaseAnonKey = 'sb_publishable_GFCKtO3G2YwiweQ3S5mKaQ_Dioakamh';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
