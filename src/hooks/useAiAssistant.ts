@@ -1,6 +1,9 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 
+const SUPABASE_URL      = 'https://jzonnecthimbvdeutsft.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_GFCKtO3G2YwiweQ3S5mKaQ_Dioakamh';
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -25,12 +28,13 @@ export function useAiAssistant() {
     setLoading(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      };
 
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-assistant`,
+        `${SUPABASE_URL}/functions/v1/ai-assistant`,
         {
           method:  'POST',
           headers,
