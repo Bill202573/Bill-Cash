@@ -22,26 +22,27 @@ export interface Transaction {
 }
 
 export interface CreditCard {
-  id:           string;
-  name:         string;
-  last_digits:  string;
-  current_bill: number;
-  limit:        number;
-  due_date:     string;
-  color:        string;
-  created_at?:  string;
+  id:            string;
+  name:          string;
+  last_digits:   string;
+  current_bill:  number;
+  credit_limit:  number;
+  due_date:      string;
+  color:         string;
+  created_at?:   string;
 }
 
 export type AccountType = 'checking' | 'savings' | 'investment' | 'wallet';
 
 export interface Account {
-  id:           string;
-  name:         string;
-  type:         AccountType;
-  balance:      number;
-  color:        string;
-  institution?: string;
-  created_at?:  string;
+  id:          string;
+  name:        string;
+  bank:        string;
+  type:        AccountType;
+  balance:     number;
+  owner:       string;
+  color:       string;
+  created_at?: string;
 }
 
 export type DebtType = 'credit_card' | 'personal_loan' | 'financing' | 'overdraft' | 'other';
@@ -132,14 +133,14 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
 // ─── Card colors ──────────────────────────────────────────────────────────────
 
 export const CARD_COLORS = [
-  { label: 'Roxo',    value: 'from-purple-600 to-purple-800' },
-  { label: 'Laranja', value: 'from-orange-500 to-orange-700' },
-  { label: 'Azul',    value: 'from-blue-600 to-blue-800' },
-  { label: 'Verde',   value: 'from-green-600 to-green-800' },
-  { label: 'Rosa',    value: 'from-pink-500 to-pink-700' },
-  { label: 'Cinza',   value: 'from-slate-600 to-slate-800' },
-  { label: 'Teal',    value: 'from-teal-500 to-teal-700' },
-  { label: 'Índigo',  value: 'from-indigo-600 to-indigo-800' },
+  'from-purple-600 to-purple-800',
+  'from-orange-500 to-orange-700',
+  'from-blue-600 to-blue-800',
+  'from-green-600 to-green-800',
+  'from-pink-500 to-pink-700',
+  'from-slate-600 to-slate-800',
+  'from-teal-500 to-teal-700',
+  'from-indigo-600 to-indigo-800',
 ];
 
 // ─── Debt type labels ─────────────────────────────────────────────────────────
