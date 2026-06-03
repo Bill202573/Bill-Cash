@@ -26,7 +26,7 @@ interface Props {
 }
 
 export function TransactionForm({ open, onClose, transaction }: Props) {
-  const [type, setType] = useState<'income' | 'expense'>(transaction?.type ?? 'expense');
+  const [type, setType] = useState<'income' | 'expense' | 'transfer'>(transaction?.type ?? 'expense');
   const [form, setForm] = useState({
     description:  transaction?.description  ?? '',
     amount:       transaction?.amount?.toString() ?? '',
@@ -65,10 +65,13 @@ export function TransactionForm({ open, onClose, transaction }: Props) {
   }, [accounts, transaction]);
 
   // Categories — fallback to static list if DB table is empty
-  const { data: allCats = [] } = useCategories(type);
+  const catType = type === 'transfer' ? undefined : type;
+  const { data: allCats = [] } = useCategories(catType);
   const dbRootCats = allCats.filter(c => c.parent_id === null);
   const staticCats = type === 'income'
     ? INCOME_CATEGORIES.map(name => ({ id: name, name, type: 'income' as const, parent_id: null }))
+    : type === 'transfer'
+    ? [{ id: 'Transferência', name: 'Transferência', type: 'both' as const, parent_id: null }]
     : EXPENSE_CATEGORIES.map(name => ({ id: name, name, type: 'expense' as const, parent_id: null }));
   const rootCats     = dbRootCats.length > 0 ? dbRootCats : staticCats;
   const selectedRoot = dbRootCats.find(c => c.name === form.category);
@@ -175,18 +178,20 @@ export function TransactionForm({ open, onClose, transaction }: Props) {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Tipo */}
           <div className="flex rounded-lg overflow-hidden border border-border">
-            {(['expense', 'income'] as const).map(t => (
+            {([
+              { value: 'expense',  label: '↓ Despesa',      active: 'bg-expense text-white' },
+              { value: 'income',   label: '↑ Receita',       active: 'bg-income text-white' },
+              { value: 'transfer', label: '⇄ Transferência', active: 'bg-blue-600 text-white' },
+            ] as const).map(({ value, label, active }) => (
               <button
-                key={t}
+                key={value}
                 type="button"
-                onClick={() => { setType(t); setForm(f => ({ ...f, category: '', subcategory: '' })); }}
-                className={`flex-1 py-2 text-sm font-medium transition-colors ${
-                  type === t
-                    ? t === 'expense' ? 'bg-expense text-white' : 'bg-income text-white'
-                    : 'bg-transparent text-muted-foreground hover:bg-secondary'
+                onClick={() => { setType(value); setForm(f => ({ ...f, category: value === 'transfer' ? 'Transferência' : '', subcategory: '' })); }}
+                className={`flex-1 py-2 text-xs font-medium transition-colors ${
+                  type === value ? active : 'bg-transparent text-muted-foreground hover:bg-secondary'
                 }`}
               >
-                {t === 'expense' ? '↓ Despesa' : '↑ Receita'}
+                {label}
               </button>
             ))}
           </div>

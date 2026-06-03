@@ -59,8 +59,13 @@ export default function Transactions() {
     });
   }, [transactions, filterType, filterCat, filterMonth, filterAccount, search]);
 
-  const currentMonth = filterMonth !== 'all' ? filterMonth : new Date().toISOString().slice(0, 7);
-  const summary = useMemo(() => getMonthlySummary(transactions, currentMonth), [transactions, currentMonth]);
+  // Summary reflects filtered data
+  const summary = useMemo(() => {
+    const income   = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const expenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const transfers = filtered.filter(t => t.type === 'transfer').reduce((s, t) => s + t.amount, 0);
+    return { income, expenses, balance: income - expenses, transfers };
+  }, [filtered]);
 
   return (
     <div>
@@ -131,11 +136,12 @@ export default function Transactions() {
       )}
 
       {/* Summary chips */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
+      <div className="grid grid-cols-4 gap-3 mb-5">
         {[
-          { label: 'Receitas', value: summary.income, color: 'text-income' },
-          { label: 'Despesas', value: summary.expenses, color: 'text-expense' },
-          { label: 'Saldo', value: summary.balance, color: summary.balance >= 0 ? 'text-income' : 'text-expense' },
+          { label: 'Receitas',       value: summary.income,    color: 'text-income' },
+          { label: 'Despesas',       value: summary.expenses,  color: 'text-expense' },
+          { label: 'Transferências', value: summary.transfers, color: 'text-muted-foreground' },
+          { label: 'Saldo',          value: summary.balance,   color: summary.balance >= 0 ? 'text-income' : 'text-expense' },
         ].map(({ label, value, color }) => (
           <div key={label} className="glass-card rounded-lg p-3 text-center">
             <p className="text-xs text-muted-foreground">{label}</p>
@@ -164,6 +170,7 @@ export default function Transactions() {
             <SelectItem value="all">Todos os tipos</SelectItem>
             <SelectItem value="income">Receitas</SelectItem>
             <SelectItem value="expense">Despesas</SelectItem>
+            <SelectItem value="transfer">Transferências</SelectItem>
           </SelectContent>
         </Select>
         <Select value={filterCat} onValueChange={setFilterCat}>
