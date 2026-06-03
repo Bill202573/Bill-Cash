@@ -18,7 +18,7 @@ export const lastNMonths = (n: number): string[] =>
 // ─── Summary ──────────────────────────────────────────────────────────────────
 
 export function getMonthlySummary(transactions: Transaction[], month: string) {
-  const txs = transactions.filter(t => t.date.startsWith(month));
+  const txs = transactions.filter(t => t.date.startsWith(month) && t.type !== 'transfer');
   const income = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const balance = income - expenses;
@@ -43,7 +43,7 @@ export function getCategoryBreakdown(transactions: Transaction[], month: string)
       percentage: total > 0 ? (amount / total) * 100 : 0,
     }))
     .sort((a, b) => b.amount - a.amount);
-}
+};
 
 export function getIncomeCategoryBreakdown(transactions: Transaction[], month: string) {
   const txs = transactions.filter(t => t.date.startsWith(month) && t.type === 'income');
@@ -62,7 +62,7 @@ export function getIncomeCategoryBreakdown(transactions: Transaction[], month: s
       percentage: total > 0 ? (amount / total) * 100 : 0,
     }))
     .sort((a, b) => b.amount - a.amount);
-}
+};
 
 export function getMonthlyChartData(transactions: Transaction[]) {
   const months = lastNMonths(6).reverse();

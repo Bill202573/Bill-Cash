@@ -52,6 +52,22 @@ export function detectCategory(description: string): string {
   return 'Outros';
 }
 
+// Detecta se é potencialmente uma transferência interna
+export function isLikelyInternalTransfer(description: string): boolean {
+  const lower = description.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const patterns = [
+    'transferencia',
+    'transferência',
+    'ted ',
+    'doc ',
+    'tei',
+    'pix ',
+    'transf ',
+    'trans ',
+  ];
+  return patterns.some(p => lower.includes(p));
+}
+
 // ─── Utilidades ───────────────────────────────────────────────────────────────
 
 function parseOFXDate(raw: string): string {

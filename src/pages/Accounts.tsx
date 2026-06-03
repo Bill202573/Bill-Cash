@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, Wallet } from 'lucide-react';
+import { Plus, Pencil, Trash2, Wallet, ArrowLeftRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AccountForm } from '@/components/AccountForm';
+import { InternalTransferForm } from '@/components/InternalTransferForm';
 import { useAccounts, useDeleteAccount } from '@/hooks/useAccounts';
 import { useTransactions } from '@/hooks/useTransactions';
 import { ACCOUNT_TYPE_LABELS, type Account } from '@/lib/supabase';
@@ -10,6 +11,7 @@ import { toast } from 'sonner';
 
 export default function Accounts() {
   const [showForm, setShowForm] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
 
   const { data: accounts = [], isLoading } = useAccounts();
@@ -49,9 +51,16 @@ export default function Accounts() {
             {accounts.length} conta(s) · Saldo total: {fmt(totalBalance)}
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)} size="sm" className="gap-2">
-          <Plus className="h-4 w-4" /> Nova Conta
-        </Button>
+        <div className="flex gap-2">
+          {accounts.length > 1 && (
+            <Button onClick={() => setShowTransfer(true)} size="sm" variant="outline" className="gap-2">
+              <ArrowLeftRight className="h-4 w-4" /> Transferir
+            </Button>
+          )}
+          <Button onClick={() => setShowForm(true)} size="sm" className="gap-2">
+            <Plus className="h-4 w-4" /> Nova Conta
+          </Button>
+        </div>
       </div>
 
       {/* Saldo total */}
@@ -175,6 +184,7 @@ export default function Accounts() {
 
       <AccountForm open={showForm} onClose={() => setShowForm(false)} />
       {editing && <AccountForm open onClose={() => setEditing(null)} account={editing} />}
+      <InternalTransferForm open={showTransfer} onClose={() => setShowTransfer(false)} />
     </div>
   );
 }
