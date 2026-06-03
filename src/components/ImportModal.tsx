@@ -138,24 +138,52 @@ export function ImportModal({ open, onClose }: Props) {
     const errors: string[] = [];
     const imported: ParsedRow[] = [];
 
-    for (const row of selected) {
+    console.log('%c🔍 IMPORT DEBUG v3 — ' + new Date().toISOString(), 'color: yellow; font-size: 16px; font-weight: bold');
+    console.log('Total rows to import:', selected.length);
+
+    // Test connection first with a single transaction
+    const first = selected[0];
+    const { _raw, selected: _, ...firstTx } = first as ParsedRow & { selected: boolean; _raw?: string };
+    const firstPayload = { ...firstTx, account: account || firstTx.account, user: firstTx.user || 'Você' };
+    console.log('%c📤 TEST INSERT', 'color: cyan; font-weight: bold', firstPayload);
+
+    try {
+      const result = await add.mutateAsync(firstPayload);
+      console.log('%c✅ TEST INSERT SUCCESS', 'color: green; font-weight: bold', result);
+      count = 1;
+      imported.push(firstTx);
+    } catch (firstErr: any) {
+      const detail = {
+        message: firstErr?.message,
+        code: firstErr?.code,
+        details: firstErr?.details,
+        hint: firstErr?.hint,
+        status: firstErr?.status,
+        statusText: firstErr?.statusText,
+        full: firstErr,
+      };
+      console.error('%c❌ TEST INSERT FAILED', 'color: red; font-size: 16px; font-weight: bold', detail);
+      toast.error(`ERRO DB: ${firstErr?.message || JSON.stringify(firstErr).slice(0, 200)}`, { duration: 30000 });
+      setImporting(false);
+      setStep('done');
+      setImportedCount(0);
+      return;
+    }
+
+    // If first succeeded, try the rest
+    for (let i = 1; i < selected.length; i++) {
+      const row = selected[i];
       try {
         const { _raw, selected: _, ...tx } = row as ParsedRow & { selected: boolean; _raw?: string };
         const payload = { ...tx, account: account || tx.account, user: tx.user || 'Você' };
-        console.log('[IMPORT] Inserting:', payload);
         await add.mutateAsync(payload);
         count++;
         imported.push(tx);
       } catch (e: any) {
-        const errMsg = e?.message || e?.error_description || JSON.stringify(e);
-        console.error('[IMPORT ERROR]', errMsg, e);
+        const errMsg = e?.message || JSON.stringify(e);
+        console.error('[IMPORT ERROR row ' + i + ']', errMsg, e);
         errors.push(errMsg);
       }
-    }
-
-    // Show first error to user for debugging
-    if (errors.length > 0 && count === 0) {
-      toast.error(`Erro: ${errors[0]}`, { duration: 15000 });
     }
 
     // Auto-detect and link transfers
