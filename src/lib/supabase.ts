@@ -73,6 +73,8 @@ export interface BudgetGoal {
 export const EXPENSE_CATEGORIES = [
   'Alimentação',
   'Moradia',
+  'Utilidades',
+  'Serviços',
   'Transporte',
   'Saúde',
   'Educação',
@@ -113,6 +115,8 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'Seguros':       'hsl(240, 50%, 55%)',
   'Investimentos': 'hsl(152, 50%, 40%)',
   'Doações':       'hsl(30, 70%, 55%)',
+  'Utilidades':    'hsl(45, 90%, 50%)',
+  'Serviços':      'hsl(180, 55%, 45%)',
   'Outros':        'hsl(215, 15%, 55%)',
   'Salário':       'hsl(152, 60%, 48%)',
   'Freelance':     'hsl(200, 65%, 50%)',

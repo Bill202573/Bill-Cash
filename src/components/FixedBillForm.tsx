@@ -31,7 +31,7 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
 
   const [form, setForm] = useState({
     name:             bill?.name             ?? '',
-    category:         bill?.category         ?? 'Serviços',
+    category:         bill?.category         ?? 'Utilidades',
     expected_amount:  bill?.expected_amount?.toString() ?? '',
     due_day:          bill?.due_day?.toString() ?? '10',
     due_month_offset: bill?.due_month_offset  ?? 0,
