@@ -3,11 +3,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Upload, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useAddCardExpense } from '@/hooks/useCardExpenses';
-import { parseCSV } from '@/lib/importParser';
+import { parseFile } from '@/lib/importParser';
 import { fmt } from '@/lib/financial';
 import { EXPENSE_CATEGORIES, type CreditCard } from '@/lib/supabase';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 
 interface Props {
@@ -39,10 +38,22 @@ export function CardImportModal({ open, onClose, card }: Props) {
 
   const handleFile = useCallback(async (file: File) => {
     try {
-      const content = await file.text();
-      const parsed = parseCSV(content, card.name);
-      // Aceita despesas (type='expense') e ignora pagamentos/estornos por padrão
-      // Na CSV do Nubank credit card, pagamentos da fatura vêm como type='income'
+      // parseFile detects OFX, QFX, CSV, TXT by extension/content
+      const parsed = await parseFile(file, card.name);
+
+      console.log('[CARD IMPORT] Parsed file:', file.name, '→', parsed.length, 'linhas');
+      if (parsed.length > 0) console.log('[CARD IMPORT] Sample:', parsed.slice(0, 3));
+
+      if (parsed.length === 0) {
+        toast.error('Nenhuma transação encontrada no arquivo. Verifique se é OFX, QFX, CSV ou TXT válido.');
+        return;
+      }
+
+      // Em fatura de cartão:
+      // - Compras (despesas) vêm como type='expense' (negative amount no OFX)
+      // - Pagamentos da fatura/estornos vêm como type='income' (positive amount)
+      // Importamos APENAS expenses (compras). Pagamentos serão lançados na
+      // conciliação, e estornos podem ser marcados manualmente.
       const onlyExpenses = parsed
         .filter(r => r.type === 'expense')
         .map(r => ({
@@ -54,14 +65,14 @@ export function CardImportModal({ open, onClose, card }: Props) {
         }));
 
       if (onlyExpenses.length === 0) {
-        toast.error('Nenhuma despesa encontrada no arquivo. Verifique o formato (CSV do Nubank cartão).');
+        toast.error(`O arquivo tem ${parsed.length} linha(s), mas nenhuma é despesa. Pagamentos e estornos não são importados aqui.`, { duration: 8000 });
         return;
       }
 
       setRows(onlyExpenses);
       setStep('preview');
     } catch (e: any) {
-      console.error('[CARD CSV PARSE ERROR]', e);
+      console.error('[CARD IMPORT PARSE ERROR]', e);
       toast.error('Erro ao ler o arquivo: ' + (e?.message ?? String(e)));
     }
   }, [card.name]);
@@ -152,10 +163,20 @@ export function CardImportModal({ open, onClose, card }: Props) {
         {/* ── STEP 1: Upload ── */}
         {step === 'upload' && (
           <div className="space-y-4">
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-xs space-y-1">
-              <p className="font-medium text-blue-400">Como exportar a fatura do Nubank:</p>
-              <p>App Nubank → Cartão → Faturas → Mês desejado → Exportar fatura → CSV</p>
-              <p className="text-muted-foreground">Todas as despesas serão importadas como <strong>pendentes</strong> para você revisar.</p>
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-xs space-y-1.5">
+              <p className="font-medium text-blue-400">Formatos aceitos: OFX, QFX, CSV, TXT</p>
+              <p className="text-muted-foreground">
+                <strong>Nubank:</strong> App → Cartão → Faturas → Mês → Exportar → OFX ou CSV
+              </p>
+              <p className="text-muted-foreground">
+                <strong>Outros bancos:</strong> Geralmente exportam fatura em OFX
+              </p>
+              <p className="text-muted-foreground pt-1">
+                Apenas <strong>compras (despesas)</strong> são importadas. Pagamentos e estornos não entram nesta importação.
+              </p>
+              <p className="text-muted-foreground">
+                Todas vêm como <strong>pendentes</strong> para você revisar.
+              </p>
             </div>
 
             <div
@@ -169,11 +190,11 @@ export function CardImportModal({ open, onClose, card }: Props) {
             >
               <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm font-medium">Arraste o arquivo ou clique para selecionar</p>
-              <p className="text-xs text-muted-foreground mt-1">Formato: CSV</p>
+              <p className="text-xs text-muted-foreground mt-1">OFX, QFX, CSV, TXT</p>
               <input
                 ref={fileRef}
                 type="file"
-                accept=".csv,.txt"
+                accept=".ofx,.qfx,.csv,.txt"
                 className="hidden"
                 onChange={onFileChange}
               />
