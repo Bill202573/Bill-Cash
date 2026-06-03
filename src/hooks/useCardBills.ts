@@ -78,6 +78,9 @@ export function useDeleteCardBill() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Delete despesas vinculadas primeiro (FK é SET NULL, então não cascateia)
+      await supabase.from('card_expenses').delete().eq('bill_id', id);
+      // Depois deleta a fatura
       const { error } = await supabase.from('card_bills').delete().eq('id', id);
       if (error) throw error;
     },

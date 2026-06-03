@@ -67,8 +67,15 @@ async function ensureBill(
 }
 
 /**
- * Adiciona uma despesa de cartão. Se total_installments > 1, cria N despesas,
- * distribuídas nas faturas dos meses correspondentes.
+ * Adiciona uma despesa de cartão.
+ *
+ * Comportamento por modo:
+ * - Se forceBillMonthRef for informado (caso da IMPORTAÇÃO de uma fatura
+ *   completa do banco), TODAS as parcelas/despesas vão para esse mês.
+ *   A primeira parcela usa esse mês, e as seguintes (se houver) avançam +1.
+ *
+ * - Sem forceBillMonthRef (lançamento MANUAL avulso), usa closingDay para
+ *   decidir em qual fatura cai (compras após o fechamento vão para a próxima).
  */
 export function useAddCardExpense() {
   const qc = useQueryClient();
@@ -86,6 +93,7 @@ export function useAddCardExpense() {
       origin = 'manual',
       status = 'pending',
       notes,
+      forceBillMonthRef,
     }: {
       cardId:             string;
       closingDay?:        number;
@@ -99,10 +107,14 @@ export function useAddCardExpense() {
       origin?:            'manual' | 'import';
       status?:            CardExpenseStatus;
       notes?:             string;
+      forceBillMonthRef?: string;     // 'YYYY-MM' — força a fatura
     }) => {
+      // Decide o mês de início da fatura
+      const firstMonthRef =
+        forceBillMonthRef ?? getBillMonthForPurchase(purchaseDate, closingDay);
+
       if (totalInstallments <= 1) {
-        const monthRef = getBillMonthForPurchase(purchaseDate, closingDay);
-        const billId   = await ensureBill(cardId, monthRef, closingDay, dueDay);
+        const billId = await ensureBill(cardId, firstMonthRef, closingDay, dueDay);
         const { data, error } = await supabase
           .from('card_expenses')
           .insert([{
@@ -125,8 +137,25 @@ export function useAddCardExpense() {
         return [data as CardExpense];
       }
 
-      // Parcelado: gera as N parcelas
-      const parts = splitIntoInstallments(purchaseDate, amount, totalInstallments, closingDay);
+      // Parcelado: gera as N parcelas a partir do mês de início
+      const [y, m] = firstMonthRef.split('-').map(Number);
+      const installmentAmount = Math.round((amount / totalInstallments) * 100) / 100;
+      const parts: Array<{ installment: number; monthRef: string; amount: number }> = [];
+      for (let i = 0; i < totalInstallments; i++) {
+        const monthsAhead = m - 1 + i;
+        const year  = y + Math.floor(monthsAhead / 12);
+        const month = (monthsAhead % 12) + 1;
+        parts.push({
+          installment: i + 1,
+          monthRef:    `${year}-${String(month).padStart(2, '0')}`,
+          amount:      installmentAmount,
+        });
+      }
+      // Ajuste de centavos na última
+      const distributed = installmentAmount * totalInstallments;
+      const diff = Math.round((amount - distributed) * 100) / 100;
+      if (diff !== 0) parts[parts.length - 1].amount += diff;
+
       const inserted: CardExpense[] = [];
       for (const p of parts) {
         const billId = await ensureBill(cardId, p.monthRef, closingDay, dueDay);

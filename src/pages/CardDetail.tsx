@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ChevronLeft, Upload, Plus, FileText, CheckCircle2, Receipt } from 'lucide-react';
+import { ChevronLeft, Upload, Plus, FileText, CheckCircle2, Receipt, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCreditCards } from '@/hooks/useCreditCards';
-import { useCardBills, useUpsertCardBill } from '@/hooks/useCardBills';
+import { useCardBills, useUpsertCardBill, useDeleteCardBill } from '@/hooks/useCardBills';
 import { useCardExpenses } from '@/hooks/useCardExpenses';
 import { CardExpensesTriage } from '@/components/CardExpensesTriage';
 import { CardBillReconciliation } from '@/components/CardBillReconciliation';
@@ -32,6 +32,7 @@ export default function CardDetail() {
   const [showReconcile,  setShowReconcile]  = useState(false);
 
   const upsertBill = useUpsertCardBill();
+  const deleteBill = useDeleteCardBill();
 
   const selectedBill = bills.find(b => b.id === selectedBillId) ?? null;
   const selectedBillExpenses = useMemo(
@@ -65,6 +66,23 @@ export default function CardDetail() {
     } catch (e: any) {
       console.error('[CREATE BILL ERROR]', e);
       toast.error('Erro ao criar fatura: ' + (e?.message ?? String(e)));
+    }
+  };
+
+  const handleDeleteBill = async () => {
+    if (!selectedBill) return;
+    const count = selectedBillExpenses.length;
+    const confirmMsg = count > 0
+      ? `Esta fatura tem ${count} despesa(s). Ao deletar a fatura, as despesas também serão removidas. Continuar?`
+      : `Deletar a fatura ${selectedBill.month_ref}?`;
+    if (!confirm(confirmMsg)) return;
+    try {
+      await deleteBill.mutateAsync(selectedBill.id);
+      toast.success('Fatura deletada');
+      setSelectedBillId(null);
+    } catch (e: any) {
+      console.error('[DELETE BILL ERROR]', e);
+      toast.error('Erro ao deletar fatura: ' + (e?.message ?? String(e)));
     }
   };
 
@@ -180,9 +198,18 @@ export default function CardDetail() {
               {/* Resumo da fatura selecionada */}
               <div className="glass-card rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-display font-semibold">
-                    Fatura {selectedBill.month_ref}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-display font-semibold">
+                      Fatura {selectedBill.month_ref}
+                    </h3>
+                    <button
+                      onClick={handleDeleteBill}
+                      title="Deletar fatura (e suas despesas)"
+                      className="p-1 rounded hover:bg-expense/10 text-muted-foreground hover:text-expense"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                   <span className={`text-xs px-2 py-1 rounded-full font-medium ${BILL_STATUS_COLOR[selectedBill.status]}`}>
                     {BILL_STATUS_LABEL[selectedBill.status]}
                   </span>

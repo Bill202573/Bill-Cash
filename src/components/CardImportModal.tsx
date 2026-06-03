@@ -1,7 +1,8 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Upload, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Upload, CheckCircle2, AlertTriangle, Receipt } from 'lucide-react';
 import { useAddCardExpense } from '@/hooks/useCardExpenses';
 import { parseFile } from '@/lib/importParser';
 import { fmt } from '@/lib/financial';
@@ -25,22 +26,54 @@ interface PreviewRow {
   selected:    boolean;
 }
 
+/** Gera lista de meses (do mês atual ± 6) para o seletor */
+function getMonthOptions(): Array<{ value: string; label: string }> {
+  const now = new Date();
+  const opts: Array<{ value: string; label: string }> = [];
+  for (let i = 6; i >= -6; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    opts.push({ value, label });
+  }
+  return opts;
+}
+
+/** Mês mais frequente entre as datas das despesas (default sugerido) */
+function getMostCommonMonth(rows: PreviewRow[]): string | null {
+  if (rows.length === 0) return null;
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const m = r.date.slice(0, 7);
+    counts.set(m, (counts.get(m) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+}
+
 export function CardImportModal({ open, onClose, card }: Props) {
   const [step, setStep] = useState<Step>('upload');
   const [dragging, setDragging] = useState(false);
   const [rows, setRows] = useState<PreviewRow[]>([]);
+  const [billMonth, setBillMonth] = useState<string>('');
   const [importing, setImporting] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const addExpense = useAddCardExpense();
+  const monthOptions = useMemo(() => getMonthOptions(), []);
+
+  // Sugere o mês mais comum nas datas como mês padrão da fatura
+  useEffect(() => {
+    if (rows.length > 0 && !billMonth) {
+      const suggested = getMostCommonMonth(rows);
+      if (suggested) setBillMonth(suggested);
+    }
+  }, [rows, billMonth]);
 
   const handleFile = useCallback(async (file: File) => {
     try {
-      // parseFile detects OFX, QFX, CSV, TXT by extension/content
       const parsed = await parseFile(file, card.name);
-
       console.log('[CARD IMPORT] Parsed file:', file.name, '→', parsed.length, 'linhas');
       if (parsed.length > 0) console.log('[CARD IMPORT] Sample:', parsed.slice(0, 3));
 
@@ -49,11 +82,6 @@ export function CardImportModal({ open, onClose, card }: Props) {
         return;
       }
 
-      // Em fatura de cartão:
-      // - Compras (despesas) vêm como type='expense' (negative amount no OFX)
-      // - Pagamentos da fatura/estornos vêm como type='income' (positive amount)
-      // Importamos APENAS expenses (compras). Pagamentos serão lançados na
-      // conciliação, e estornos podem ser marcados manualmente.
       const onlyExpenses = parsed
         .filter(r => r.type === 'expense')
         .map(r => ({
@@ -107,6 +135,10 @@ export function CardImportModal({ open, onClose, card }: Props) {
       toast.error('Selecione pelo menos uma despesa');
       return;
     }
+    if (!billMonth) {
+      toast.error('Selecione o mês de referência da fatura');
+      return;
+    }
 
     setImporting(true);
     let count = 0;
@@ -115,15 +147,16 @@ export function CardImportModal({ open, onClose, card }: Props) {
     for (const row of selected) {
       try {
         await addExpense.mutateAsync({
-          cardId:       card.id,
-          closingDay:   card.closing_day,
-          dueDay:       card.due_day,
-          description:  row.description,
-          amount:       row.amount,
-          purchaseDate: row.date,
-          category:     row.category || undefined,
-          origin:       'import',
-          status:       'pending',  // import vem como pendente para triagem
+          cardId:            card.id,
+          closingDay:        card.closing_day,
+          dueDay:            card.due_day,
+          description:       row.description,
+          amount:            row.amount,
+          purchaseDate:      row.date,
+          category:          row.category || undefined,
+          origin:            'import',
+          status:            'pending',
+          forceBillMonthRef: billMonth,   // ← força TODAS para a mesma fatura
         });
         count++;
       } catch (e: any) {
@@ -141,6 +174,7 @@ export function CardImportModal({ open, onClose, card }: Props) {
   const handleClose = () => {
     setStep('upload');
     setRows([]);
+    setBillMonth('');
     setImportedCount(0);
     setErrors([]);
     onClose();
@@ -172,7 +206,7 @@ export function CardImportModal({ open, onClose, card }: Props) {
                 <strong>Outros bancos:</strong> Geralmente exportam fatura em OFX
               </p>
               <p className="text-muted-foreground pt-1">
-                Apenas <strong>compras (despesas)</strong> são importadas. Pagamentos e estornos não entram nesta importação.
+                Apenas <strong>compras (despesas)</strong> são importadas. Pagamentos e estornos não entram aqui.
               </p>
               <p className="text-muted-foreground">
                 Todas vêm como <strong>pendentes</strong> para você revisar.
@@ -205,6 +239,26 @@ export function CardImportModal({ open, onClose, card }: Props) {
         {/* ── STEP 2: Preview ── */}
         {step === 'preview' && (
           <>
+            {/* Seletor de mês da fatura — CRÍTICO */}
+            <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 mb-3 flex-shrink-0">
+              <Label className="text-xs text-primary font-medium flex items-center gap-1">
+                <Receipt className="h-3 w-3" /> Mês de referência da fatura
+              </Label>
+              <Select value={billMonth} onValueChange={setBillMonth}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Selecione o mês..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                ⚠️ <strong>Todas</strong> as despesas serão lançadas nesta fatura única, mesmo que tenham datas em meses diferentes (faturas de cartão costumam ter compras retroativas do mês anterior por causa do fechamento).
+              </p>
+            </div>
+
             <div className="flex items-center gap-4 p-3 bg-secondary/50 rounded-lg text-sm flex-shrink-0 flex-wrap">
               <span className="font-medium">{selectedCount} de {rows.length} selecionadas</span>
               <span className="text-expense">Total: -{fmt(totalSelected)}</span>
@@ -213,14 +267,14 @@ export function CardImportModal({ open, onClose, card }: Props) {
               </button>
             </div>
 
-            <div className="overflow-auto flex-1 rounded-lg border border-border/30">
+            <div className="overflow-auto flex-1 rounded-lg border border-border/30 mt-2">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-card border-b border-border/30">
                   <tr className="text-xs text-muted-foreground">
                     <th className="w-8 p-2 text-center">
                       <input type="checkbox" checked={rows.every(r => r.selected)} onChange={toggleAll} className="accent-primary" />
                     </th>
-                    <th className="p-2 text-left w-24">Data</th>
+                    <th className="p-2 text-left w-24">Data compra</th>
                     <th className="p-2 text-left">Descrição</th>
                     <th className="p-2 text-left w-32">Categoria</th>
                     <th className="p-2 text-right w-28">Valor</th>
@@ -253,8 +307,8 @@ export function CardImportModal({ open, onClose, card }: Props) {
 
             <div className="flex gap-3 flex-shrink-0 pt-2">
               <Button variant="outline" onClick={() => setStep('upload')} className="flex-1">Voltar</Button>
-              <Button onClick={handleImport} disabled={importing || selectedCount === 0} className="flex-1">
-                {importing ? `Importando... (${importedCount})` : `Importar ${selectedCount} despesa(s)`}
+              <Button onClick={handleImport} disabled={importing || selectedCount === 0 || !billMonth} className="flex-1">
+                {importing ? `Importando... (${importedCount})` : `Importar ${selectedCount} para fatura ${billMonth}`}
               </Button>
             </div>
           </>
@@ -269,7 +323,7 @@ export function CardImportModal({ open, onClose, card }: Props) {
                 <div>
                   <p className="text-xl font-display font-bold">{importedCount} despesa(s) importada(s)!</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Próximo passo: revisar e confirmar as despesas (triagem) na fatura.
+                    Todas vinculadas à fatura <strong>{billMonth}</strong>. Próximo passo: triagem e conciliação.
                   </p>
                 </div>
               </>
