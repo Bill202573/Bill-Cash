@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ChevronLeft, Upload, Plus, FileText, CheckCircle2, Receipt, Trash2 } from 'lucide-react';
+import { ChevronLeft, Upload, Plus, FileText, CheckCircle2, Receipt, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { useCardBills, useUpsertCardBill, useDeleteCardBill } from '@/hooks/useCardBills';
@@ -9,6 +9,7 @@ import { CardExpensesTriage } from '@/components/CardExpensesTriage';
 import { CardBillReconciliation } from '@/components/CardBillReconciliation';
 import { CardImportModal } from '@/components/CardImportModal';
 import { CardExpenseForm } from '@/components/CardExpenseForm';
+import { CardBillEditModal } from '@/components/CardBillEditModal';
 import { fmt } from '@/lib/financial';
 import {
   BILL_STATUS_LABEL,
@@ -30,6 +31,7 @@ export default function CardDetail() {
   const [showImport,     setShowImport]     = useState(false);
   const [showNewExp,     setShowNewExp]     = useState(false);
   const [showReconcile,  setShowReconcile]  = useState(false);
+  const [showEditBill,   setShowEditBill]   = useState(false);
 
   const upsertBill = useUpsertCardBill();
   const deleteBill = useDeleteCardBill();
@@ -47,7 +49,10 @@ export default function CardDetail() {
     const refunded  = selectedBillExpenses.filter(e => e.status === 'refunded');
     const totalPending   = pending.reduce((s, e) => s + Number(e.amount), 0);
     const totalConfirmed = confirmed.reduce((s, e) => s + Number(e.amount), 0);
-    return { pending, confirmed, refunded, totalPending, totalConfirmed };
+    const totalRefunded  = refunded.reduce((s, e) => s + Number(e.amount), 0);
+    // Bruto = soma de todas as linhas que NÃO foram estornadas (o que a fatura "diz" que devo pagar)
+    const totalBruto     = totalPending + totalConfirmed;
+    return { pending, confirmed, refunded, totalPending, totalConfirmed, totalRefunded, totalBruto };
   }, [selectedBillExpenses]);
 
   const handleCreateBill = async (monthRef: string) => {
@@ -197,11 +202,18 @@ export default function CardDetail() {
             <div className="space-y-4">
               {/* Resumo da fatura selecionada */}
               <div className="glass-card rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <h3 className="font-display font-semibold">
                       Fatura {selectedBill.month_ref}
                     </h3>
+                    <button
+                      onClick={() => setShowEditBill(true)}
+                      title="Editar fatura (mês, datas, status)"
+                      className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
                     <button
                       onClick={handleDeleteBill}
                       title="Deletar fatura (e suas despesas)"
@@ -215,6 +227,37 @@ export default function CardDetail() {
                   </span>
                 </div>
 
+                {/* Datas e total bruto */}
+                <div className="bg-secondary/30 rounded-lg p-3 mb-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="text-xs text-muted-foreground space-y-0.5">
+                      {selectedBill.closing_date && (
+                        <p>Fecha em <strong className="text-foreground">
+                          {new Date(selectedBill.closing_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                        </strong></p>
+                      )}
+                      {selectedBill.due_date && (
+                        <p>Vence em <strong className="text-foreground">
+                          {new Date(selectedBill.due_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                        </strong></p>
+                      )}
+                      {!selectedBill.closing_date && !selectedBill.due_date && (
+                        <p className="text-warning">Sem datas — clique no lápis para editar</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Total bruto</p>
+                      <p className="text-xl font-display font-bold text-expense">
+                        {fmt(billStats.totalBruto)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedBillExpenses.length - billStats.refunded.length} despesa(s)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Breakdown por status */}
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div className="bg-secondary/30 rounded-lg p-3">
                     <p className="text-xs text-muted-foreground">Confirmadas</p>
@@ -238,6 +281,9 @@ export default function CardDetail() {
                     <p className="text-xs text-muted-foreground">Estornadas</p>
                     <p className="text-sm font-semibold text-expense">
                       {billStats.refunded.length}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {fmt(billStats.totalRefunded)}
                     </p>
                   </div>
                 </div>
@@ -293,6 +339,13 @@ export default function CardDetail() {
           onClose={() => setShowReconcile(false)}
           bill={selectedBill}
           card={card}
+        />
+      )}
+      {showEditBill && selectedBill && (
+        <CardBillEditModal
+          open
+          onClose={() => setShowEditBill(false)}
+          bill={selectedBill}
         />
       )}
     </div>
