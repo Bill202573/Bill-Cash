@@ -46,10 +46,11 @@ export function ImportModal({ open, onClose }: Props) {
   const rootCatNames = allCatsRaw.filter(c => c.parent_id === null).map(c => c.name);
   const ALL_CATEGORIES = rootCatNames.length > 0 ? rootCatNames : FALLBACK_CATEGORIES;
 
-  // Refresh transactions when modal opens (to clear cache)
+  // Refresh transactions when modal opens - force immediate refetch
   useEffect(() => {
     if (open) {
-      qc.invalidateQueries({ queryKey: ['transactions'] });
+      qc.resetQueries({ queryKey: ['transactions'] });
+      qc.refetchQueries({ queryKey: ['transactions'] });
     }
   }, [open, qc]);
 

@@ -97,8 +97,9 @@ export function DeleteTransactionsModal({ open, onClose }: Props) {
 
       if (error) throw error;
 
-      // Invalidate transactions cache immediately so ImportModal sees fresh data
-      await qc.invalidateQueries({ queryKey: ['transactions'] });
+      // Force immediate refetch to ensure ImportModal sees fresh data
+      qc.resetQueries({ queryKey: ['transactions'] });
+      await qc.refetchQueries({ queryKey: ['transactions'] });
 
       toast.success(`${selectedIds.size} transação(ões) deletada(s)`);
       setSelectedIds(new Set());
