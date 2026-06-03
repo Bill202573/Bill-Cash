@@ -107,7 +107,7 @@ export function parseOFX(content: string, account = ''): ParsedRow[] {
       category: detectCategory(memo),
       date: parseOFXDate(dtposted),
       account,
-      user_label: 'Você',
+      user: 'Você',
       _raw: block,
     });
   }
@@ -263,7 +263,7 @@ export function parseCSV(content: string, account = ''): ParsedRow[] {
         category: detectCategory(description),
         date,
         account,
-        user_label: 'Você',
+        user: 'Você',
         _raw: lines[i],
       });
     } catch {

@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Layout } from '@/components/Layout';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import Dashboard from '@/pages/Dashboard';
 import Transactions from '@/pages/Transactions';
 import Debts from '@/pages/Debts';
@@ -24,13 +25,13 @@ const App = () => (
       <Toaster richColors position="top-right" />
       <BrowserRouter>
         <Routes>
-          <Route path="/"             element={<Layout><Dashboard   /></Layout>} />
+          <Route path="/"             element={<Layout><ErrorBoundary><Dashboard   /></ErrorBoundary></Layout>} />
           <Route path="/transacoes"   element={<Layout><Transactions /></Layout>} />
           <Route path="/dividas"      element={<Layout><Debts        /></Layout>} />
           <Route path="/orcamento"    element={<Layout><Budget       /></Layout>} />
           <Route path="/insights"     element={<Layout><Insights     /></Layout>} />
           <Route path="/contas"       element={<Layout><Accounts     /></Layout>} />
-          <Route path="/contas-fixas" element={<Layout><FixedBills   /></Layout>} />
+          <Route path="/contas-fixas" element={<Layout><ErrorBoundary><FixedBills   /></ErrorBoundary></Layout>} />
           <Route path="/assistente"    element={<Layout><Assistente    /></Layout>} />
           <Route path="/configuracoes" element={<Layout><Configuracoes /></Layout>} />
           <Route path="*"              element={<NotFound />} />

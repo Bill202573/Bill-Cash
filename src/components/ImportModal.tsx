@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAddTransaction } from '@/hooks/useTransactions';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCategories } from '@/hooks/useCategories';
+import { useAddImportRecord } from '@/hooks/useImportHistory';
 import { parseFile, type ParsedRow } from '@/lib/importParser';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '@/lib/supabase';
 import { fmt } from '@/lib/financial';
@@ -30,6 +31,8 @@ export function ImportModal({ open, onClose }: Props) {
   const [importedCount, setImportedCount] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const add = useAddTransaction();
+  const addImport = useAddImportRecord();
+  const [fileName, setFileName] = useState('');
 
   const { data: accounts = [] } = useAccounts();
   const { data: allCatsRaw = [] } = useCategories();
@@ -48,6 +51,7 @@ export function ImportModal({ open, onClose }: Props) {
 
   const handleFile = useCallback(async (file: File) => {
     try {
+      setFileName(file.name);
       const parsed = await parseFile(file, account);
       if (parsed.length === 0) {
         toast.error('Nenhuma transação encontrada no arquivo. Verifique o formato.');
@@ -121,12 +125,32 @@ export function ImportModal({ open, onClose }: Props) {
     if (selected.length === 0) { toast.error('Selecione pelo menos uma transação'); return; }
     setImporting(true);
     let count = 0;
+    const errors: string[] = [];
     for (const row of selected) {
       try {
         const { _raw, selected: _, ...tx } = row as ParsedRow & { selected: boolean; _raw?: string };
-        await add.mutateAsync({ ...tx, account: account || tx.account });
+        await add.mutateAsync({ ...tx, account: account || tx.account, user: tx.user || 'Você' });
         count++;
-      } catch { /* skip duplicates/errors */ }
+      } catch (e) {
+        errors.push(String(e));
+      }
+    }
+
+    // Save import history
+    try {
+      const dates = selected.map(r => r.date).filter(Boolean).sort();
+      const month = dates[0]?.slice(0, 7) ?? new Date().toISOString().slice(0, 7);
+      await addImport.mutateAsync({
+        account,
+        file_name: fileName || 'extrato',
+        month,
+        total_rows: selected.length,
+        saved_rows: count,
+      });
+    } catch { /* non-critical */ }
+
+    if (errors.length > 0) {
+      toast.warning(`${count} importadas, ${errors.length} ignoradas (duplicatas ou erros)`);
     }
     setImportedCount(count);
     setImporting(false);
