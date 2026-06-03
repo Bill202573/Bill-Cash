@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTransactions } from '@/hooks/useTransactions';
+import { useAccounts } from '@/hooks/useAccounts';
 import { fmt } from '@/lib/financial';
 import { Trash2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,14 +18,37 @@ interface Props {
 
 export function DeleteTransactionsModal({ open, onClose }: Props) {
   const { data: allTransactions = [] } = useTransactions();
+  const { data: accounts = [] } = useAccounts();
   const [monthFilter, setMonthFilter] = useState('2026-01');
+  const [accountFilter, setAccountFilter] = useState('all');
+  const [typeFilters, setTypeFilters] = useState(new Set(['income', 'expense', 'transfer']));
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
 
+  const availableMonths = useMemo(() => {
+    const months = [...new Set(allTransactions.map(t => t.date.slice(0, 7)))].sort().reverse();
+    return months;
+  }, [allTransactions]);
+
   const filtered = useMemo(
-    () => allTransactions.filter(t => t.date.startsWith(monthFilter)),
-    [allTransactions, monthFilter]
+    () => allTransactions.filter(t => {
+      if (!t.date.startsWith(monthFilter)) return false;
+      if (accountFilter !== 'all' && t.account !== accountFilter) return false;
+      if (!typeFilters.has(t.type)) return false;
+      return true;
+    }),
+    [allTransactions, monthFilter, accountFilter, typeFilters]
   );
+
+  const toggleTypeFilter = (type: 'income' | 'expense' | 'transfer') => {
+    const newSet = new Set(typeFilters);
+    if (newSet.has(type)) {
+      newSet.delete(type);
+    } else {
+      newSet.add(type);
+    }
+    setTypeFilters(newSet);
+  };
 
   const totalAmount = useMemo(
     () => filtered
@@ -74,12 +98,22 @@ export function DeleteTransactionsModal({ open, onClose }: Props) {
       toast.success(`${selectedIds.size} transação(ões) deletada(s)`);
       setSelectedIds(new Set());
       setMonthFilter('2026-01');
+      setAccountFilter('all');
+      setTypeFilters(new Set(['income', 'expense', 'transfer']));
       onClose();
     } catch (e) {
       toast.error('Erro ao deletar: ' + String(e));
     } finally {
       setDeleting(false);
     }
+  };
+
+  const handleClose = () => {
+    setSelectedIds(new Set());
+    setMonthFilter('2026-01');
+    setAccountFilter('all');
+    setTypeFilters(new Set(['income', 'expense', 'transfer']));
+    onClose();
   };
 
   return (
@@ -93,21 +127,76 @@ export function DeleteTransactionsModal({ open, onClose }: Props) {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Filtro de mês */}
-          <div>
-            <Label>Filtrar por mês</Label>
-            <Input
-              type="month"
-              value={monthFilter}
-              onChange={e => setMonthFilter(e.target.value)}
-              className="mt-1"
-            />
+          {/* Filtros */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Mês */}
+            <div>
+              <Label className="text-xs">Mês</Label>
+              <Select value={monthFilter} onValueChange={setMonthFilter}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableMonths.map(m => (
+                    <SelectItem key={m} value={m}>
+                      {new Date(m + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Conta */}
+            <div>
+              <Label className="text-xs">Conta</Label>
+              <Select value={accountFilter} onValueChange={setAccountFilter}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as contas</SelectItem>
+                  {[...new Set(allTransactions.map(t => t.account))].sort().map(acc => (
+                    <SelectItem key={acc} value={acc}>{acc}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Tipos */}
+            <div>
+              <Label className="text-xs">Tipos</Label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer rounded px-2 py-1.5 bg-secondary/50 hover:bg-secondary">
+                  <Checkbox
+                    checked={typeFilters.has('income')}
+                    onCheckedChange={() => toggleTypeFilter('income')}
+                  />
+                  <span>Receita</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer rounded px-2 py-1.5 bg-secondary/50 hover:bg-secondary">
+                  <Checkbox
+                    checked={typeFilters.has('expense')}
+                    onCheckedChange={() => toggleTypeFilter('expense')}
+                  />
+                  <span>Despesa</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer rounded px-2 py-1.5 bg-secondary/50 hover:bg-secondary">
+                  <Checkbox
+                    checked={typeFilters.has('transfer')}
+                    onCheckedChange={() => toggleTypeFilter('transfer')}
+                  />
+                  <span>Transfer.</span>
+                </label>
+              </div>
+            </div>
           </div>
 
           {/* Resumo */}
           <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
             <p className="text-sm text-muted-foreground">
-              Encontradas <strong>{filtered.length}</strong> transação(ões) em {monthFilter}
+              Encontradas <strong>{filtered.length}</strong> transação(ões)
+              {monthFilter !== 'all' && <> em {new Date(monthFilter + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</>}
+              {accountFilter !== 'all' && <> • {accountFilter}</>}
             </p>
             {selectedIds.size > 0 && (
               <p className="text-sm text-red-500 mt-1">
@@ -145,11 +234,21 @@ export function DeleteTransactionsModal({ open, onClose }: Props) {
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{tx.description}</p>
-                    <p className="text-xs text-muted-foreground">{tx.date} • {tx.account}</p>
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                      <span>{tx.date}</span>
+                      <span>•</span>
+                      <span>{tx.account}</span>
+                      <span>•</span>
+                      <span className={`font-medium ${
+                        tx.type === 'income' ? 'text-income' : tx.type === 'expense' ? 'text-expense' : 'text-muted-foreground'
+                      }`}>
+                        {tx.type === 'income' ? 'Receita' : tx.type === 'expense' ? 'Despesa' : 'Transferência'}
+                      </span>
+                    </div>
                   </div>
                   <div className="text-right">
-                    <p className={`text-sm font-medium ${tx.type === 'income' ? 'text-income' : 'text-expense'}`}>
-                      {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
+                    <p className={`text-sm font-medium ${tx.type === 'income' ? 'text-income' : tx.type === 'expense' ? 'text-expense' : 'text-muted-foreground'}`}>
+                      {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''}{fmt(tx.amount)}
                     </p>
                     <p className="text-xs text-muted-foreground">{tx.category}</p>
                   </div>
@@ -160,7 +259,7 @@ export function DeleteTransactionsModal({ open, onClose }: Props) {
 
           {/* Botões */}
           <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+            <Button type="button" variant="outline" className="flex-1" onClick={handleClose}>
               Cancelar
             </Button>
             <Button

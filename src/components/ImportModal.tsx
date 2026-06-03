@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAddTransaction, useTransactions } from '@/hooks/useTransactions';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCategories } from '@/hooks/useCategories';
@@ -13,6 +14,7 @@ import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '@/lib/supabase';
 import { fmt } from '@/lib/financial';
 import { Upload, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 const FALLBACK_CATEGORIES = [...new Set([...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES])];
 
@@ -30,7 +32,9 @@ export function ImportModal({ open, onClose }: Props) {
   const [rows, setRows] = useState<(ParsedRow & { selected: boolean })[]>([]);
   const [importing, setImporting] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
+  const [ignoreDuplicates, setIgnoreDuplicates] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const qc = useQueryClient();
   const add = useAddTransaction();
   const addImport = useAddImportRecord();
   const autoLink = useAutoLinkTransfers();
@@ -41,6 +45,13 @@ export function ImportModal({ open, onClose }: Props) {
   const { data: allCatsRaw = [] } = useCategories();
   const rootCatNames = allCatsRaw.filter(c => c.parent_id === null).map(c => c.name);
   const ALL_CATEGORIES = rootCatNames.length > 0 ? rootCatNames : FALLBACK_CATEGORIES;
+
+  // Refresh transactions when modal opens (to clear cache)
+  useEffect(() => {
+    if (open) {
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+    }
+  }, [open, qc]);
 
   // Default account: Nubank William or first account
   useEffect(() => {
@@ -60,19 +71,19 @@ export function ImportModal({ open, onClose }: Props) {
         toast.error('Nenhuma transação encontrada no arquivo. Verifique o formato.');
         return;
       }
-      // Check for duplicates against existing transactions
+      // Check for duplicates against existing transactions (unless ignored)
       const dupKey = (r: { description: string; amount: number; date: string; account?: string }) =>
         `${r.description.trim().toLowerCase()}|${r.amount}|${r.date}`;
       const existingKeys = new Set(existingTxs.map(dupKey));
       setRows(parsed.map(r => {
-        const isDup = existingKeys.has(dupKey(r));
+        const isDup = !ignoreDuplicates && existingKeys.has(dupKey(r));
         return { ...r, selected: !isDup, _isDuplicate: isDup };
       }));
       setStep('preview');
     } catch (e) {
       toast.error('Erro ao ler o arquivo. Verifique se é OFX ou CSV válido.');
     }
-  }, [account]);
+  }, [account, ignoreDuplicates, existingTxs]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -230,6 +241,19 @@ export function ImportModal({ open, onClose }: Props) {
               <p className="text-xs text-muted-foreground mt-1">
                 Todas as transações importadas serão vinculadas a essa conta.
               </p>
+            </div>
+
+            {/* Ignore duplicates checkbox */}
+            <div className="flex items-center gap-2 p-3 bg-warning/5 rounded-lg border border-warning/20">
+              <Checkbox
+                id="ignoreDups"
+                checked={ignoreDuplicates}
+                onCheckedChange={(v) => setIgnoreDuplicates(Boolean(v))}
+              />
+              <Label htmlFor="ignoreDups" className="text-sm cursor-pointer mb-0">
+                <span className="font-medium">Ignorar duplicatas detectadas</span>
+                <p className="text-xs text-muted-foreground mt-0.5">Use se você deletou as transações antigas mas o sistema ainda as reconhece como duplicatas</p>
+              </Label>
             </div>
 
             {/* Drop zone */}
