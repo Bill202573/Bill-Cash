@@ -16,7 +16,7 @@ import {
 } from '@/hooks/useTransactions';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCategories, useAddCategory } from '@/hooks/useCategories';
-import { type Transaction } from '@/lib/supabase';
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, type Transaction } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 interface Props {
@@ -34,7 +34,7 @@ export function TransactionForm({ open, onClose, transaction }: Props) {
     subcategory:  transaction?.subcategory  ?? '',
     date:         transaction?.date         ?? new Date().toISOString().slice(0, 10),
     account:      transaction?.account      ?? '',
-    user_label:   transaction?.user_label   ?? 'Você',
+    user:         transaction?.user         ?? 'Você',
     notes:        transaction?.notes        ?? '',
   });
 
@@ -64,10 +64,14 @@ export function TransactionForm({ open, onClose, transaction }: Props) {
     }
   }, [accounts, transaction]);
 
-  // Categories
+  // Categories — fallback to static list if DB table is empty
   const { data: allCats = [] } = useCategories(type);
-  const rootCats     = allCats.filter(c => c.parent_id === null);
-  const selectedRoot = rootCats.find(c => c.name === form.category);
+  const dbRootCats = allCats.filter(c => c.parent_id === null);
+  const staticCats = type === 'income'
+    ? INCOME_CATEGORIES.map(name => ({ id: name, name, type: 'income' as const, parent_id: null }))
+    : EXPENSE_CATEGORIES.map(name => ({ id: name, name, type: 'expense' as const, parent_id: null }));
+  const rootCats     = dbRootCats.length > 0 ? dbRootCats : staticCats;
+  const selectedRoot = dbRootCats.find(c => c.name === form.category);
   const subcats      = selectedRoot
     ? allCats.filter(c => c.parent_id === selectedRoot.id)
     : [];
@@ -352,12 +356,12 @@ export function TransactionForm({ open, onClose, transaction }: Props) {
               </Select>
             </div>
             <div>
-              <Label htmlFor="user_label">Pessoa</Label>
+              <Label htmlFor="user">Pessoa</Label>
               <Input
-                id="user_label"
+                id="user"
                 placeholder="Ex: Você"
-                value={form.user_label}
-                onChange={e => setForm(f => ({ ...f, user_label: e.target.value }))}
+                value={form.user}
+                onChange={e => setForm(f => ({ ...f, user: e.target.value }))}
                 className="mt-1"
               />
             </div>

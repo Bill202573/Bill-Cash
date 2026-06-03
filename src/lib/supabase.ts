@@ -10,15 +10,17 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface Transaction {
-  id:          string;
-  description: string;
-  amount:      number;
-  type:        'income' | 'expense';
-  category:    string;
-  date:        string;       // YYYY-MM-DD
-  account:     string;
-  user:        string;
-  created_at?: string;
+  id:           string;
+  description:  string;
+  amount:       number;
+  type:         'income' | 'expense';
+  category:     string;
+  subcategory?: string;
+  date:         string;       // YYYY-MM-DD
+  account:      string;
+  user:         string;
+  notes?:       string;
+  created_at?:  string;
 }
 
 export interface CreditCard {

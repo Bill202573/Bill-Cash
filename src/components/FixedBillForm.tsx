@@ -216,10 +216,10 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
           {/* Conta vinculada */}
           <div>
             <Label>Conta vinculada (para conciliação)</Label>
-            <Select value={form.account} onValueChange={v => setForm(f => ({ ...f, account: v }))}>
+            <Select value={form.account || '__any__'} onValueChange={v => setForm(f => ({ ...f, account: v === '__any__' ? '' : v }))}>
               <SelectTrigger className="mt-1"><SelectValue placeholder="Qualquer conta" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Qualquer conta</SelectItem>
+                <SelectItem value="__any__">Qualquer conta</SelectItem>
                 {accounts.map(a => <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>)}
               </SelectContent>
             </Select>
