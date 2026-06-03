@@ -11,10 +11,11 @@ interface LayoutProps { children: ReactNode }
 const NAV = [
   { path: '/',             icon: LayoutDashboard, label: 'Dashboard'     },
   { path: '/transacoes',   icon: ArrowLeftRight,  label: 'Transações'    },
+  { path: '/contas',       icon: Wallet,          label: 'Contas'        },
+  { path: '/cartoes',      icon: CreditCard,      label: 'Cartões'       },
   { path: '/contas-fixas', icon: FileText,        label: 'Contas Fixas'  },
   { path: '/dividas',      icon: CreditCard,      label: 'Dívidas'       },
   { path: '/orcamento',    icon: Target,          label: 'Orçamento'     },
-  { path: '/contas',       icon: Wallet,          label: 'Contas'        },
   { path: '/insights',     icon: Lightbulb,       label: 'Insights'      },
   { path: '/assistente',    icon: Bot,      label: 'Assistente IA',  highlight: true },
   { path: '/configuracoes', icon: Settings, label: 'Configurações' },
