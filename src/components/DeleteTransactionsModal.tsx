@@ -10,6 +10,7 @@ import { fmt } from '@/lib/financial';
 import { Trash2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface Props {
   open: boolean;
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export function DeleteTransactionsModal({ open, onClose }: Props) {
+  const qc = useQueryClient();
   const { data: allTransactions = [] } = useTransactions();
   const { data: accounts = [] } = useAccounts();
   const [monthFilter, setMonthFilter] = useState('2026-01');
@@ -94,6 +96,9 @@ export function DeleteTransactionsModal({ open, onClose }: Props) {
         .in('id', ids);
 
       if (error) throw error;
+
+      // Invalidate transactions cache immediately so ImportModal sees fresh data
+      await qc.invalidateQueries({ queryKey: ['transactions'] });
 
       toast.success(`${selectedIds.size} transação(ões) deletada(s)`);
       setSelectedIds(new Set());
