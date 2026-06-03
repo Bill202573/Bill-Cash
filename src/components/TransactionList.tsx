@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { ArrowUpRight, ArrowDownRight, Pencil, Trash2 } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Pencil, Trash2, Undo2 } from 'lucide-react';
 import { useDeleteTransaction } from '@/hooks/useTransactions';
 import { TransactionForm } from './TransactionForm';
+import { MarkAsTransferModal } from './MarkAsTransferModal';
 import type { Transaction } from '@/lib/supabase';
 import { fmt } from '@/lib/financial';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface Props {
   transactions: Transaction[];
@@ -57,7 +60,9 @@ function parseDescription(raw: string) {
 
 export default function TransactionList({ transactions, limit, showActions = true }: Props) {
   const [editing, setEditing] = useState<Transaction | null>(null);
+  const [marking, setMarking] = useState<Transaction | null>(null);
   const del = useDeleteTransaction();
+  const qc = useQueryClient();
 
   const items = limit ? transactions.slice(0, limit) : transactions;
 
@@ -68,6 +73,47 @@ export default function TransactionList({ transactions, limit, showActions = tru
       toast.success('Transação excluída');
     } catch {
       toast.error('Erro ao excluir');
+    }
+  };
+
+  const handleUndoTransfer = async (tx: Transaction) => {
+    if (!confirm('Reverter esta transferência? As duas transações voltarão a ser receita/despesa normais.')) return;
+    try {
+      // Find the linked pair in internal_transfers
+      const { data: links, error: e0 } = await supabase
+        .from('internal_transfers')
+        .select('*')
+        .or(`from_tx_id.eq.${tx.id},to_tx_id.eq.${tx.id}`)
+        .limit(1);
+      if (e0) throw e0;
+
+      const link = links?.[0];
+      if (!link) {
+        // No link record found — just revert this single transaction
+        const guessed = tx.account ? 'expense' : 'expense'; // fallback
+        await supabase
+          .from('transactions')
+          .update({ type: guessed })
+          .eq('id', tx.id);
+        toast.warning('Vínculo não encontrado — apenas esta transação foi revertida.');
+      } else {
+        // Revert both: from_tx_id → expense, to_tx_id → income
+        if (link.from_tx_id) {
+          await supabase.from('transactions').update({ type: 'expense' }).eq('id', link.from_tx_id);
+        }
+        if (link.to_tx_id) {
+          await supabase.from('transactions').update({ type: 'income' }).eq('id', link.to_tx_id);
+        }
+        // Delete the link record
+        await supabase.from('internal_transfers').delete().eq('id', link.id);
+        toast.success('Transferência revertida — transações voltaram a ser receita/despesa.');
+      }
+
+      await qc.invalidateQueries({ queryKey: ['transactions'] });
+      await qc.invalidateQueries({ queryKey: ['internal_transfers'] });
+    } catch (err: any) {
+      console.error('[UNDO TRANSFER ERROR]', err);
+      toast.error('Erro ao reverter: ' + (err?.message ?? String(err)));
     }
   };
 
@@ -94,10 +140,16 @@ export default function TransactionList({ transactions, limit, showActions = tru
                 title={parsed.bankDetail}
               >
                 {/* Ícone */}
-                <div className={`p-1.5 rounded-md flex-shrink-0 ${tx.type === 'income' ? 'bg-income/10' : 'bg-expense/10'}`}>
+                <div className={`p-1.5 rounded-md flex-shrink-0 ${
+                  tx.type === 'income'  ? 'bg-income/10'
+                : tx.type === 'expense' ? 'bg-expense/10'
+                :                         'bg-primary/10'
+                }`}>
                   {tx.type === 'income'
                     ? <ArrowUpRight className="h-4 w-4 text-income" />
-                    : <ArrowDownRight className="h-4 w-4 text-expense" />}
+                  : tx.type === 'expense'
+                    ? <ArrowDownRight className="h-4 w-4 text-expense" />
+                    : <ArrowLeftRight className="h-4 w-4 text-primary" />}
                 </div>
 
                 {/* Descrição em até 3 linhas */}
@@ -118,8 +170,12 @@ export default function TransactionList({ transactions, limit, showActions = tru
 
                 {/* Valor + data */}
                 <div className="text-right flex-shrink-0">
-                  <p className={`text-sm font-semibold ${tx.type === 'income' ? 'text-income' : 'text-expense'}`}>
-                    {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
+                  <p className={`text-sm font-semibold ${
+                    tx.type === 'income'  ? 'text-income'
+                  : tx.type === 'expense' ? 'text-expense'
+                  :                         'text-primary'
+                  }`}>
+                    {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '↔ '}{fmt(tx.amount)}
                   </p>
                   <p className="text-xs text-muted-foreground">{fmtDate(tx.date)}</p>
                 </div>
@@ -127,15 +183,34 @@ export default function TransactionList({ transactions, limit, showActions = tru
                 {/* Ações */}
                 {showActions && (
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    {tx.type === 'transfer' ? (
+                      <button
+                        onClick={() => handleUndoTransfer(tx)}
+                        className="p-1 rounded hover:bg-warning/10 text-muted-foreground hover:text-warning"
+                        title="Reverter transferência"
+                      >
+                        <Undo2 className="h-3.5 w-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setMarking(tx)}
+                        className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary"
+                        title="Marcar como transferência"
+                      >
+                        <ArrowLeftRight className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={() => setEditing(tx)}
                       className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
+                      title="Editar"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => handleDelete(tx.id)}
                       className="p-1 rounded hover:bg-expense/10 text-muted-foreground hover:text-expense"
+                      title="Excluir"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -149,6 +224,10 @@ export default function TransactionList({ transactions, limit, showActions = tru
 
       {editing && (
         <TransactionForm open onClose={() => setEditing(null)} transaction={editing} />
+      )}
+
+      {marking && (
+        <MarkAsTransferModal open onClose={() => setMarking(null)} source={marking} />
       )}
     </>
   );
