@@ -141,12 +141,21 @@ export function ImportModal({ open, onClose }: Props) {
     for (const row of selected) {
       try {
         const { _raw, selected: _, ...tx } = row as ParsedRow & { selected: boolean; _raw?: string };
-        await add.mutateAsync({ ...tx, account: account || tx.account, user: tx.user || 'Você' });
+        const payload = { ...tx, account: account || tx.account, user: tx.user || 'Você' };
+        console.log('[IMPORT] Inserting:', payload);
+        await add.mutateAsync(payload);
         count++;
         imported.push(tx);
-      } catch (e) {
-        errors.push(String(e));
+      } catch (e: any) {
+        const errMsg = e?.message || e?.error_description || JSON.stringify(e);
+        console.error('[IMPORT ERROR]', errMsg, e);
+        errors.push(errMsg);
       }
+    }
+
+    // Show first error to user for debugging
+    if (errors.length > 0 && count === 0) {
+      toast.error(`Erro: ${errors[0]}`, { duration: 15000 });
     }
 
     // Auto-detect and link transfers
