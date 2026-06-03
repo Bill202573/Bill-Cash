@@ -24,14 +24,56 @@ export interface Transaction {
 }
 
 export interface CreditCard {
-  id:            string;
-  name:          string;
-  last_digits:   string;
-  current_bill:  number;
-  credit_limit:  number;
-  due_date:      string;
-  color:         string;
-  created_at?:   string;
+  id:               string;
+  name:             string;
+  last_digits:      string;
+  current_bill:     number;
+  credit_limit:     number;
+  due_date:         string;
+  color:            string;
+  closing_day?:     number;        // dia do mês em que a fatura fecha (1-31)
+  due_day?:         number;        // dia do mês de vencimento (1-31)
+  payment_account?: string;        // nome da conta usada para pagar (FK por nome, como nas transactions)
+  active?:          boolean;
+  created_at?:      string;
+}
+
+// ─── Cartão: Fatura mensal ────────────────────────────────────────────────────
+export type CardBillStatus = 'open' | 'closed' | 'paid' | 'reconciled';
+
+export interface CardBill {
+  id:             string;
+  card_id:        string;
+  month_ref:      string;          // 'YYYY-MM'
+  closing_date?:  string;          // YYYY-MM-DD
+  due_date?:      string;          // YYYY-MM-DD
+  total_amount:   number;          // soma das despesas confirmadas
+  paid_amount:    number;          // valor efetivamente pago
+  payment_tx_id?: string | null;   // FK -> transactions.id (quando paga)
+  status:         CardBillStatus;
+  notes?:         string;
+  created_at?:    string;
+}
+
+// ─── Cartão: Despesa individual (linha da fatura) ─────────────────────────────
+export type CardExpenseStatus = 'pending' | 'confirmed' | 'refunded';
+export type CardExpenseOrigin = 'manual' | 'import';
+
+export interface CardExpense {
+  id:                 string;
+  bill_id?:           string | null;
+  card_id:            string;
+  description:        string;
+  amount:             number;
+  purchase_date:      string;      // YYYY-MM-DD
+  category?:          string;
+  subcategory?:       string;
+  installment:        number;      // 1 = à vista, ou número da parcela atual
+  total_installments: number;      // 1 = à vista, ou total de parcelas
+  status:             CardExpenseStatus;
+  origin:             CardExpenseOrigin;
+  notes?:             string;
+  created_at?:        string;
 }
 
 export type AccountType = 'checking' | 'savings' | 'investment' | 'wallet';
