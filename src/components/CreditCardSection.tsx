@@ -60,18 +60,35 @@ export default function CreditCardSection({ cards }: Props) {
               return (
                 <div
                   key={card.id}
-                  className="p-4 rounded-lg bg-secondary/50 border border-border/30 group relative"
+                  className="p-4 rounded-lg bg-secondary/50 border border-border/30 group"
                 >
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="font-medium text-sm">{card.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {card.last_digits ? `•••• ${card.last_digits}` : 'Sem dígitos'}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-warning">{fmt(card.current_bill)}</p>
-                      <p className="text-xs text-muted-foreground">Vence {fmtDate(card.due_date)}</p>
+                    <div className="flex items-center gap-1">
+                      {/* Actions — always visible on right */}
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity mr-1">
+                        <button
+                          onClick={() => setEditing(card)}
+                          className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(card.id)}
+                          className="p-1 rounded hover:bg-expense/10 text-muted-foreground hover:text-expense"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-warning">{fmt(card.current_bill)}</p>
+                        <p className="text-xs text-muted-foreground">Vence {fmtDate(card.due_date)}</p>
+                      </div>
                     </div>
                   </div>
                   <div className="w-full bg-secondary rounded-full h-1.5">
@@ -83,22 +100,6 @@ export default function CreditCardSection({ cards }: Props) {
                   <p className="text-xs text-muted-foreground mt-1.5">
                     {usagePct.toFixed(0)}% do limite de {fmt(card.credit_limit)}
                   </p>
-
-                  {/* Actions */}
-                  <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => setEditing(card)}
-                      className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(card.id)}
-                      className="p-1 rounded hover:bg-expense/10 text-muted-foreground hover:text-expense"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
                 </div>
               );
             })}

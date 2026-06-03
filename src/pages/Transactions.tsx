@@ -19,8 +19,14 @@ export default function Transactions() {
   const [filterType, setFilterType] = useState('all');
   const [filterCat, setFilterCat] = useState('Todas');
   const [filterMonth, setFilterMonth] = useState('all');
+  const [filterAccount, setFilterAccount] = useState('all');
 
   const { data: transactions = [], isLoading } = useTransactions();
+
+  // Build account list from available transactions
+  const availableAccounts = useMemo(() => {
+    return [...new Set(transactions.map(t => t.account).filter(Boolean))].sort();
+  }, [transactions]);
 
   // Build month options from available data
   const availableMonths = useMemo(() => {
@@ -33,10 +39,11 @@ export default function Transactions() {
       if (filterType !== 'all' && t.type !== filterType) return false;
       if (filterCat !== 'Todas' && t.category !== filterCat) return false;
       if (filterMonth !== 'all' && !t.date.startsWith(filterMonth)) return false;
+      if (filterAccount !== 'all' && t.account !== filterAccount) return false;
       if (search && !t.description.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [transactions, filterType, filterCat, filterMonth, search]);
+  }, [transactions, filterType, filterCat, filterMonth, filterAccount, search]);
 
   const currentMonth = filterMonth !== 'all' ? filterMonth : new Date().toISOString().slice(0, 7);
   const summary = useMemo(() => getMonthlySummary(transactions, currentMonth), [transactions, currentMonth]);
@@ -104,6 +111,17 @@ export default function Transactions() {
           </SelectTrigger>
           <SelectContent>
             {ALL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterAccount} onValueChange={setFilterAccount}>
+          <SelectTrigger className="w-full sm:w-40">
+            <SelectValue placeholder="Conta" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as contas</SelectItem>
+            {availableAccounts.map(a => (
+              <SelectItem key={a} value={a}>{a}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select value={filterMonth} onValueChange={setFilterMonth}>
