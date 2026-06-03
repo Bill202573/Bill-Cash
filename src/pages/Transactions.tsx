@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import TransactionList from '@/components/TransactionList';
 import { TransactionForm } from '@/components/TransactionForm';
 import { ImportModal } from '@/components/ImportModal';
+import { DeleteTransactionsModal } from '@/components/DeleteTransactionsModal';
 import { useTransactions } from '@/hooks/useTransactions';
 import { fmt, getMonthlySummary } from '@/lib/financial';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '@/lib/supabase';
@@ -16,6 +17,7 @@ const ALL_CATEGORIES = ['Todas', ...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES.fil
 export default function Transactions() {
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterCat, setFilterCat] = useState('Todas');
@@ -77,6 +79,10 @@ export default function Transactions() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => setShowDelete(true)} size="sm" variant="outline" className="gap-2 text-red-500 hover:text-red-600">
+            <Trash2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Deletar</span>
+          </Button>
           <Button onClick={() => setShowImport(true)} size="sm" variant="outline" className="gap-2">
             <Upload className="h-4 w-4" />
             <span className="hidden sm:inline">Importar Extrato</span>
@@ -215,6 +221,7 @@ export default function Transactions() {
 
       <TransactionForm open={showForm} onClose={() => setShowForm(false)} />
       <ImportModal open={showImport} onClose={() => setShowImport(false)} />
+      <DeleteTransactionsModal open={showDelete} onClose={() => setShowDelete(false)} />
     </div>
   );
 }
