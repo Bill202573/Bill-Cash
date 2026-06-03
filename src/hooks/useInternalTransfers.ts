@@ -129,3 +129,59 @@ export function useDeleteInternalTransfer() {
     },
   });
 }
+
+// Auto-detect and link paired transactions as internal transfers
+export function useAutoLinkTransfers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (transactions: any[]) => {
+      // Find pairs: same date, same amount, different accounts
+      const pairs: Array<{ expense: any; income: any }> = [];
+
+      for (const exp of transactions.filter(t => t.type === 'expense')) {
+        const paired = transactions.find(
+          t => t.type === 'income' &&
+               t.date === exp.date &&
+               t.amount === exp.amount &&
+               t.account !== exp.account
+        );
+        if (paired) {
+          pairs.push({ expense: exp, income: paired });
+        }
+      }
+
+      // For each pair, create internal transfer and delete originals
+      const results = [];
+      for (const { expense, income } of pairs) {
+        const desc = expense.description || `Transferência ${expense.account} → ${income.account}`;
+
+        // Create transfer (which creates both transactions)
+        const { data: transfer, error } = await supabase
+          .from('internal_transfers')
+          .insert([{
+            from_account: expense.account,
+            to_account: income.account,
+            amount: expense.amount,
+            date: expense.date,
+            description: desc,
+          }])
+          .select()
+          .single();
+
+        if (error) continue;
+
+        // Delete original transactions
+        await supabase.from('transactions').delete().eq('id', expense.id);
+        await supabase.from('transactions').delete().eq('id', income.id);
+
+        results.push(transfer);
+      }
+
+      return results;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['internal_transfers'] });
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+    },
+  });
+}

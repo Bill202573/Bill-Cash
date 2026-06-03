@@ -7,6 +7,7 @@ import { useAddTransaction, useTransactions } from '@/hooks/useTransactions';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCategories } from '@/hooks/useCategories';
 import { useAddImportRecord } from '@/hooks/useImportHistory';
+import { useAutoLinkTransfers } from '@/hooks/useInternalTransfers';
 import { parseFile, type ParsedRow } from '@/lib/importParser';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '@/lib/supabase';
 import { fmt } from '@/lib/financial';
@@ -32,6 +33,7 @@ export function ImportModal({ open, onClose }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const add = useAddTransaction();
   const addImport = useAddImportRecord();
+  const autoLink = useAutoLinkTransfers();
   const [fileName, setFileName] = useState('');
 
   const { data: accounts = [] } = useAccounts();
@@ -134,13 +136,29 @@ export function ImportModal({ open, onClose }: Props) {
     setImporting(true);
     let count = 0;
     const errors: string[] = [];
+    const imported: ParsedRow[] = [];
+
     for (const row of selected) {
       try {
         const { _raw, selected: _, ...tx } = row as ParsedRow & { selected: boolean; _raw?: string };
         await add.mutateAsync({ ...tx, account: account || tx.account, user: tx.user || 'Você' });
         count++;
+        imported.push(tx);
       } catch (e) {
         errors.push(String(e));
+      }
+    }
+
+    // Auto-detect and link transfers
+    if (imported.length > 0) {
+      try {
+        const linked = await autoLink.mutateAsync(imported);
+        if (linked.length > 0) {
+          toast.success(`✓ ${linked.length} transferência(s) interna(s) detectada(s) e vinculada(s) automaticamente`);
+          count -= linked.length * 2; // Subtract because we created transfer instead of 2 separate txs
+        }
+      } catch (e) {
+        // Non-critical, transfers can be linked manually
       }
     }
 
