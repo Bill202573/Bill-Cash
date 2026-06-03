@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAddTransaction } from '@/hooks/useTransactions';
+import { useAddTransaction, useTransactions } from '@/hooks/useTransactions';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCategories } from '@/hooks/useCategories';
 import { useAddImportRecord } from '@/hooks/useImportHistory';
@@ -35,6 +35,7 @@ export function ImportModal({ open, onClose }: Props) {
   const [fileName, setFileName] = useState('');
 
   const { data: accounts = [] } = useAccounts();
+  const { data: existingTxs = [] } = useTransactions();
   const { data: allCatsRaw = [] } = useCategories();
   const rootCatNames = allCatsRaw.filter(c => c.parent_id === null).map(c => c.name);
   const ALL_CATEGORIES = rootCatNames.length > 0 ? rootCatNames : FALLBACK_CATEGORIES;
@@ -57,7 +58,14 @@ export function ImportModal({ open, onClose }: Props) {
         toast.error('Nenhuma transação encontrada no arquivo. Verifique o formato.');
         return;
       }
-      setRows(parsed.map(r => ({ ...r, selected: true })));
+      // Check for duplicates against existing transactions
+      const dupKey = (r: { description: string; amount: number; date: string; account?: string }) =>
+        `${r.description.trim().toLowerCase()}|${r.amount}|${r.date}`;
+      const existingKeys = new Set(existingTxs.map(dupKey));
+      setRows(parsed.map(r => {
+        const isDup = existingKeys.has(dupKey(r));
+        return { ...r, selected: !isDup, _isDuplicate: isDup };
+      }));
       setStep('preview');
     } catch (e) {
       toast.error('Erro ao ler o arquivo. Verifique se é OFX ou CSV válido.');
@@ -244,16 +252,26 @@ export function ImportModal({ open, onClose }: Props) {
         {step === 'preview' && (
           <>
             {/* Summary bar */}
-            <div className="flex items-center gap-4 p-3 bg-secondary/50 rounded-lg text-sm flex-shrink-0">
-              <span className="font-medium">{selectedCount} de {rows.length} selecionadas</span>
-              <span className="text-income">+{fmt(totalIncome)}</span>
-              <span className="text-expense">-{fmt(totalExpense)}</span>
-              <div className="ml-auto flex items-center gap-2">
-                <button onClick={toggleAll} className="text-xs text-primary hover:underline">
-                  {rows.every(r => r.selected) ? 'Desmarcar todas' : 'Marcar todas'}
-                </button>
-              </div>
-            </div>
+            {(() => {
+              const dupCount = rows.filter(r => (r as typeof r & { _isDuplicate?: boolean })._isDuplicate).length;
+              return (
+                <div className="flex items-center gap-4 p-3 bg-secondary/50 rounded-lg text-sm flex-shrink-0 flex-wrap">
+                  <span className="font-medium">{selectedCount} de {rows.length} selecionadas</span>
+                  <span className="text-income">+{fmt(totalIncome)}</span>
+                  <span className="text-expense">-{fmt(totalExpense)}</span>
+                  {dupCount > 0 && (
+                    <span className="text-xs bg-warning/20 text-warning px-2 py-0.5 rounded-full font-medium">
+                      ⚠️ {dupCount} possível(is) duplicata(s) desmarcada(s)
+                    </span>
+                  )}
+                  <div className="ml-auto flex items-center gap-2">
+                    <button onClick={toggleAll} className="text-xs text-primary hover:underline">
+                      {rows.every(r => r.selected) ? 'Desmarcar todas' : 'Marcar todas'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Table */}
             <div className="overflow-auto flex-1 rounded-lg border border-border/30">
@@ -280,7 +298,9 @@ export function ImportModal({ open, onClose }: Props) {
                     <tr
                       key={i}
                       className={`border-b border-border/20 ${
-                        row.selected ? '' : 'opacity-40'
+                        (row as typeof row & { _isDuplicate?: boolean })._isDuplicate
+                          ? 'bg-warning/5'
+                          : row.selected ? '' : 'opacity-40'
                       } hover:bg-secondary/30`}
                     >
                       <td className="p-2 text-center">
@@ -292,7 +312,12 @@ export function ImportModal({ open, onClose }: Props) {
                         />
                       </td>
                       <td className="p-2 text-muted-foreground">{row.date}</td>
-                      <td className="p-2 max-w-xs truncate" title={row.description}>{row.description}</td>
+                      <td className="p-2 max-w-xs truncate" title={row.description}>
+                        {row.description}
+                        {(row as typeof row & { _isDuplicate?: boolean })._isDuplicate && (
+                          <span className="ml-1 text-xs text-warning" title="Possível duplicata">⚠️ dup</span>
+                        )}
+                      </td>
                       <td className="p-2">
                         <Select value={row.category} onValueChange={v => updateCategory(i, v)}>
                           <SelectTrigger className="h-7 text-xs px-2">

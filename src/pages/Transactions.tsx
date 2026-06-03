@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Plus, Search, Filter, Upload } from 'lucide-react';
+import { Plus, Search, Filter, Upload, AlertTriangle, Trash2 } from 'lucide-react';
+import { useDeleteTransaction } from '@/hooks/useTransactions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,6 +23,19 @@ export default function Transactions() {
   const [filterAccount, setFilterAccount] = useState('all');
 
   const { data: transactions = [], isLoading } = useTransactions();
+  const deleteTransaction = useDeleteTransaction();
+  const [showDuplicates, setShowDuplicates] = useState(false);
+
+  // Find duplicates
+  const duplicateGroups = useMemo(() => {
+    const map = new Map<string, typeof transactions>();
+    transactions.forEach(t => {
+      const key = `${t.description.trim().toLowerCase()}|${t.amount}|${t.date}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(t);
+    });
+    return [...map.values()].filter(g => g.length > 1);
+  }, [transactions]);
 
   // Build account list from available transactions
   const availableAccounts = useMemo(() => {
@@ -68,6 +82,53 @@ export default function Transactions() {
           </Button>
         </div>
       </div>
+
+      {/* Duplicate alert banner */}
+      {duplicateGroups.length > 0 && (
+        <div className="mb-4 glass-card rounded-xl border border-warning/30 overflow-hidden">
+          <div
+            className="flex items-center justify-between gap-2 px-4 py-3 bg-warning/10 cursor-pointer"
+            onClick={() => setShowDuplicates(v => !v)}
+          >
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+              <p className="text-sm font-semibold text-warning">
+                {duplicateGroups.length} grupo(s) de transações duplicadas encontrado(s)
+              </p>
+            </div>
+            <span className="text-xs text-warning">{showDuplicates ? '▲ Fechar' : '▼ Ver e limpar'}</span>
+          </div>
+          {showDuplicates && (
+            <div className="divide-y divide-border/20 max-h-64 overflow-y-auto">
+              {duplicateGroups.map((group, gi) => (
+                <div key={gi} className="px-4 py-3">
+                  <p className="text-sm font-medium mb-2">
+                    {group[0].description} — {fmt(group[0].amount)} em {group[0].date}
+                    <span className="ml-2 text-xs text-warning">({group.length}x)</span>
+                  </p>
+                  <div className="space-y-1">
+                    {group.map((tx, ti) => (
+                      <div key={tx.id} className="flex items-center justify-between text-xs text-muted-foreground bg-secondary/30 rounded px-2 py-1">
+                        <span>#{ti + 1} — {tx.account} — {tx.category}</span>
+                        {ti > 0 && (
+                          <button
+                            onClick={() => deleteTransaction.mutateAsync(tx.id)}
+                            className="text-expense hover:text-expense/80 p-0.5 rounded hover:bg-expense/10 ml-2"
+                            title="Remover duplicata"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {ti === 0 && <span className="text-primary text-xs">✓ manter</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Summary chips */}
       <div className="grid grid-cols-3 gap-3 mb-5">
