@@ -1,21 +1,27 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
 
 const SUPABASE_URL      = 'https://jzonnecthimbvdeutsft.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_GFCKtO3G2YwiweQ3S5mKaQ_Dioakamh';
 
 export interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
+  id:         string;
+  role:       'user' | 'assistant';
+  content:    string;
   created_at: string;
-  tool_calls?: unknown[];
+}
+
+// Internal history format for the API
+interface ApiMessage {
+  role:    string;
+  content: string;
+  tool_calls?:  unknown[];
+  tool_call_id?: string;
 }
 
 export function useAiAssistant() {
-  const [messages, setMessages]         = useState<ChatMessage[]>([]);
-  const [loading, setLoading]           = useState(false);
-  const [responseId, setResponseId]     = useState<string | undefined>();
+  const [messages,  setMessages]  = useState<ChatMessage[]>([]);
+  const [apiHistory, setApiHistory] = useState<ApiMessage[]>([]);
+  const [loading,   setLoading]   = useState(false);
 
   const sendMessage = useCallback(async (text: string) => {
     const userMsg: ChatMessage = {
@@ -28,48 +34,49 @@ export function useAiAssistant() {
     setLoading(true);
 
     try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      };
-
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/ai-assistant`,
-        {
-          method:  'POST',
-          headers,
-          body:    JSON.stringify({ message: text, previous_response_id: responseId }),
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-assistant`, {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         },
-      );
+        body: JSON.stringify({ message: text, history: apiHistory }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Erro ${res.status}: ${err}`);
+      }
 
       const json = await res.json();
       if (json.error) throw new Error(json.error);
 
-      setResponseId(json.response_id);
+      // Update history for next turn
+      setApiHistory(json.history ?? []);
 
       const assistantMsg: ChatMessage = {
         id:         crypto.randomUUID(),
         role:       'assistant',
-        content:    json.reply,
+        content:    json.reply || '(sem resposta)',
         created_at: new Date().toISOString(),
       };
       setMessages(prev => [...prev, assistantMsg]);
+
     } catch (e) {
-      const errMsg: ChatMessage = {
+      setMessages(prev => [...prev, {
         id:         crypto.randomUUID(),
         role:       'assistant',
         content:    `Erro ao conectar com o assistente: ${String(e)}`,
         created_at: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, errMsg]);
+      }]);
     } finally {
       setLoading(false);
     }
-  }, [responseId]);
+  }, [apiHistory]);
 
   const clearConversation = useCallback(() => {
     setMessages([]);
-    setResponseId(undefined);
+    setApiHistory([]);
   }, []);
 
   return { messages, loading, sendMessage, clearConversation };
