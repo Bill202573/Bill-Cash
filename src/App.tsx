@@ -12,6 +12,7 @@ import Insights from '@/pages/Insights';
 import Accounts from '@/pages/Accounts';
 import Cards from '@/pages/Cards';
 import CardDetail from '@/pages/CardDetail';
+import Categories from '@/pages/Categories';
 import FixedBills from '@/pages/FixedBills';
 import Assistente from '@/pages/Assistente';
 import Configuracoes from '@/pages/Configuracoes';
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/contas"       element={<Layout><Accounts     /></Layout>} />
           <Route path="/cartoes"      element={<Layout><ErrorBoundary><Cards        /></ErrorBoundary></Layout>} />
           <Route path="/cartoes/:id"  element={<Layout><ErrorBoundary><CardDetail   /></ErrorBoundary></Layout>} />
+          <Route path="/categorias"   element={<Layout><ErrorBoundary><Categories   /></ErrorBoundary></Layout>} />
           <Route path="/contas-fixas" element={<Layout><ErrorBoundary><FixedBills   /></ErrorBoundary></Layout>} />
           <Route path="/assistente"    element={<Layout><Assistente    /></Layout>} />
           <Route path="/configuracoes" element={<Layout><Configuracoes /></Layout>} />

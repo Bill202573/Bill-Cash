@@ -46,6 +46,23 @@ export function useAddCategory() {
   });
 }
 
+export function useUpdateCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<Category> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('categories')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as Category;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }),
+  });
+}
+
 export function useDeleteCategory() {
   const qc = useQueryClient();
   return useMutation({
@@ -54,5 +71,23 @@ export function useDeleteCategory() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['categories'] }),
+  });
+}
+
+/** Conta quantas transações + despesas de cartão usam uma categoria */
+export function useCategoryUsageCount(categoryName: string | undefined) {
+  return useQuery({
+    queryKey: ['category_usage', categoryName],
+    queryFn: async () => {
+      if (!categoryName) return { transactions: 0, cardExpenses: 0, total: 0 };
+      const [txRes, ceRes] = await Promise.all([
+        supabase.from('transactions').select('id', { count: 'exact', head: true }).eq('category', categoryName),
+        supabase.from('card_expenses').select('id', { count: 'exact', head: true }).eq('category', categoryName),
+      ]);
+      const transactions  = txRes.count ?? 0;
+      const cardExpenses  = ceRes.count ?? 0;
+      return { transactions, cardExpenses, total: transactions + cardExpenses };
+    },
+    enabled: !!categoryName,
   });
 }
