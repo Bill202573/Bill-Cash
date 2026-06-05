@@ -12,6 +12,7 @@ import { InsightPanel } from '@/components/InsightPanel';
 import { TransactionForm } from '@/components/TransactionForm';
 import { IncludeCardsToggle } from '@/components/IncludeCardsToggle';
 import { FinancialSnapshot } from '@/components/FinancialSnapshot';
+import { BillsAlertPanel } from '@/components/BillsAlertPanel';
 import { useUnifiedTransactions } from '@/hooks/useUnifiedTransactions';
 import { useDebts } from '@/hooks/useDebts';
 import { useCreditCards } from '@/hooks/useCreditCards';
@@ -122,6 +123,11 @@ export default function Dashboard() {
       {/* ── Posição atual (snapshot em tempo real) ── */}
       <div className="mb-4">
         <FinancialSnapshot />
+      </div>
+
+      {/* ── Alertas de contas fixas (atrasadas + a vencer) ── */}
+      <div className="mb-4">
+        <BillsAlertPanel />
       </div>
 
       {/* ── Toggle: incluir cartão por categoria ── */}
