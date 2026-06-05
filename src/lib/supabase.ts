@@ -73,6 +73,8 @@ export interface CardExpense {
   status:             CardExpenseStatus;
   origin:             CardExpenseOrigin;
   notes?:             string;
+  /** Mesmo uuid em todas as parcelas de uma mesma compra (12x do iPhone, etc.) */
+  purchase_group_id?: string | null;
   created_at?:        string;
 }
 

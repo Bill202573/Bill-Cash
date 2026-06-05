@@ -10,6 +10,7 @@ import { CardBillReconciliation } from '@/components/CardBillReconciliation';
 import { CardImportModal } from '@/components/CardImportModal';
 import { CardExpenseForm } from '@/components/CardExpenseForm';
 import { CardBillEditModal } from '@/components/CardBillEditModal';
+import { CardProjectParcelasButton } from '@/components/CardProjectParcelasButton';
 import { fmt } from '@/lib/financial';
 import {
   BILL_STATUS_LABEL,
@@ -286,6 +287,11 @@ export default function CardDetail() {
                       {fmt(billStats.totalRefunded)}
                     </p>
                   </div>
+                </div>
+
+                {/* Botão de projeção retroativa de parcelas */}
+                <div className="mt-3">
+                  <CardProjectParcelasButton card={card} currentBill={selectedBill} />
                 </div>
 
                 {/* Ação de conciliação se fechada */}

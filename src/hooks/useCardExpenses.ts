@@ -6,6 +6,7 @@ import {
   getDueDateForBill,
   splitIntoInstallments,
 } from '@/lib/cardBills';
+import { addMonthsToYYYYMM } from '@/lib/parcelas';
 
 interface CardExpenseFilter {
   billId?:    string;
@@ -235,6 +236,121 @@ export function useDeleteCardExpense() {
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('card_expenses').delete().eq('id', id);
       if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['card_expenses'] });
+      qc.invalidateQueries({ queryKey: ['card_bills'] });
+    },
+  });
+}
+
+/**
+ * Projeta parcelas futuras de uma compra parcelada.
+ *
+ * Quando importamos a parcela X de Y (ex: 1/12) da fatura atual, esta função:
+ *  - Gera (ou reutiliza) um purchase_group_id
+ *  - Insere a parcela X na fatura atual (status=pending, origin=import)
+ *  - Insere as parcelas (X+1)..Y nas faturas futuras (uma por mês),
+ *    criando as faturas se ainda não existirem (status=pending)
+ *
+ * IMPORTANTE — anti-duplicação inteligente:
+ *  Antes de inserir, verifica se já existe parcela com mesmo
+ *  purchase_group_id e mesmo installment (caso a função seja chamada
+ *  duas vezes). Se existir, ATUALIZA em vez de duplicar.
+ */
+export function useProjectInstallments() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      cardId,
+      closingDay,
+      dueDay,
+      currentBillMonthRef,
+      baseDescription,
+      installmentAmount,
+      currentInstallment,
+      totalInstallments,
+      purchaseDate,
+      category,
+      subcategory,
+      groupId,                    // opcional; gerado se ausente
+    }: {
+      cardId:              string;
+      closingDay?:         number;
+      dueDay?:             number;
+      currentBillMonthRef: string;
+      baseDescription:     string;
+      installmentAmount:   number;
+      currentInstallment:  number;
+      totalInstallments:   number;
+      purchaseDate:        string;
+      category?:           string;
+      subcategory?:        string;
+      groupId?:            string;
+    }) => {
+      const purchaseGroupId = groupId ?? crypto.randomUUID();
+      const inserted: CardExpense[] = [];
+
+      // Gera as parcelas: currentInstallment até totalInstallments
+      for (let i = currentInstallment; i <= totalInstallments; i++) {
+        const offset = i - currentInstallment;
+        const monthRef = addMonthsToYYYYMM(currentBillMonthRef, offset);
+        const billId   = await ensureBill(cardId, monthRef, closingDay, dueDay);
+        const description = `${baseDescription} (${i}/${totalInstallments})`;
+
+        // Já existe esta parcela com o mesmo grupo? (segurança contra dupla chamada)
+        const { data: existing } = await supabase
+          .from('card_expenses')
+          .select('*')
+          .eq('card_id', cardId)
+          .eq('purchase_group_id', purchaseGroupId)
+          .eq('installment', i)
+          .maybeSingle();
+
+        if (existing) {
+          // Atualiza para refletir os dados mais recentes (caso amount tenha mudado)
+          const { data, error } = await supabase
+            .from('card_expenses')
+            .update({
+              bill_id:     billId,
+              amount:      installmentAmount,
+              description,
+              category,
+              subcategory,
+            })
+            .eq('id', existing.id)
+            .select()
+            .single();
+          if (error) throw error;
+          inserted.push(data as CardExpense);
+          continue;
+        }
+
+        const { data, error } = await supabase
+          .from('card_expenses')
+          .insert([{
+            bill_id:            billId,
+            card_id:            cardId,
+            description,
+            amount:             installmentAmount,
+            purchase_date:      purchaseDate,
+            category,
+            subcategory,
+            installment:        i,
+            total_installments: totalInstallments,
+            // Parcela atual entra como 'pending' (triagem); futuras como 'pending'
+            // também (mas o usuário vai marcá-las quando a fatura real chegar).
+            status:             'pending',
+            origin:             'import',
+            purchase_group_id:  purchaseGroupId,
+          }])
+          .select()
+          .single();
+        if (error) throw error;
+        inserted.push(data as CardExpense);
+      }
+
+      return { groupId: purchaseGroupId, expenses: inserted };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['card_expenses'] });
