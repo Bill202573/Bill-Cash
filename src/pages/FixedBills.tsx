@@ -191,6 +191,28 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
           </DialogTitle>
         </DialogHeader>
 
+        {/* Competência + Vencimento */}
+        {(bill.competence_month || bill.due_date) && (
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-xs space-y-1">
+            {bill.competence_month && (
+              <p>
+                <span className="text-muted-foreground">Competência:</span>
+                <span className="ml-2 font-medium capitalize">
+                  {new Date(bill.competence_month + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                </span>
+              </p>
+            )}
+            {bill.due_date && (
+              <p>
+                <span className="text-muted-foreground">Vencimento real:</span>
+                <span className="ml-2 font-medium">
+                  {new Date(bill.due_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                </span>
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="space-y-4">
           {/* Status */}
           <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${

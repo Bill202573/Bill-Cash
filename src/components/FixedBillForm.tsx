@@ -30,15 +30,17 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
   );
 
   const [form, setForm] = useState({
-    name:             bill?.name             ?? '',
-    category:         bill?.category         ?? 'Utilidades',
-    expected_amount:  bill?.expected_amount?.toString() ?? '',
-    due_day:          bill?.due_day?.toString() ?? '10',
-    due_month_offset: bill?.due_month_offset  ?? 0,
-    account:          bill?.account          ?? '',
-    keywords:         bill?.keywords?.join(', ') ?? '',
-    notes:            bill?.notes            ?? '',
-    active:           bill?.active           ?? true,
+    name:              bill?.name              ?? '',
+    category:          bill?.category          ?? 'Utilidades',
+    expected_amount:   bill?.expected_amount?.toString() ?? '',
+    due_day:           bill?.due_day?.toString() ?? '10',
+    due_month_offset:  bill?.due_month_offset   ?? 0,
+    competence_month:  bill?.competence_month  ?? new Date().toISOString().slice(0, 7),
+    due_date:          bill?.due_date          ?? new Date().toISOString().slice(0, 10),
+    account:           bill?.account           ?? '',
+    keywords:          bill?.keywords?.join(', ') ?? '',
+    notes:             bill?.notes             ?? '',
+    active:            bill?.active            ?? true,
   });
   const [recurrence, setRecurrence] = useState<Recurrence>(initRecurrence);
   const [months, setMonths] = useState<boolean[]>(initMonths);
@@ -66,17 +68,19 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
       .filter(Boolean);
 
     const payload = {
-      name:             form.name.trim(),
-      category:         form.category,
-      expected_amount:  form.expected_amount ? parseFloat(form.expected_amount) : null,
+      name:              form.name.trim(),
+      category:          form.category,
+      expected_amount:   form.expected_amount ? parseFloat(form.expected_amount) : null,
       active_months,
-      due_day:          parseInt(form.due_day || '10', 10),
-      due_month_offset: form.due_month_offset,
-      account:          form.account || null,
-      keywords:         keywords.length ? keywords : null,
-      notes:            form.notes || null,
-      active:           form.active,
-      sort_order:       bill?.sort_order ?? 99,
+      due_day:           parseInt(form.due_day || '10', 10),
+      due_month_offset:  form.due_month_offset,
+      competence_month:  form.competence_month || null,
+      due_date:          form.due_date || null,
+      account:           form.account || null,
+      keywords:          keywords.length ? keywords : null,
+      notes:             form.notes || null,
+      active:            form.active,
+      sort_order:        bill?.sort_order ?? 99,
     };
 
     try {
@@ -167,6 +171,37 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
               <p className="text-xs text-muted-foreground mt-1">
                 {form.due_month_offset === 1 ? 'Ex: Light — vence no mês após a competência' : 'Vence no mesmo mês da competência'}
               </p>
+            </div>
+          </div>
+
+          {/* Competência e vencimento real */}
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-3">
+            <p className="text-xs font-medium text-primary">📅 Competência vs Vencimento</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Mês de competência</Label>
+                <Input
+                  type="month"
+                  value={form.competence_month}
+                  onChange={e => setForm(f => ({ ...f, competence_month: e.target.value }))}
+                  className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Mês a que a conta se refere (Janeiro, Fevereiro, etc.)
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs">Data real de vencimento</Label>
+                <Input
+                  type="date"
+                  value={form.due_date}
+                  onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
+                  className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Quando você efetivamente paga
+                </p>
+              </div>
             </div>
           </div>
 

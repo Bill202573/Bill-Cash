@@ -118,6 +118,20 @@ export interface BudgetGoal {
   created_at?: string;
 }
 
+export interface FixedBill {
+  id:                 string;
+  name:               string;
+  amount:             number;
+  category?:          string;
+  /** Mês a que a conta se refere (ex: Janeiro) */
+  competence_month?:  string;     // YYYY-MM
+  /** Data real de vencimento (quando você efetivamente paga) */
+  due_date?:          string;     // YYYY-MM-DD
+  active:             boolean;
+  notes?:             string;
+  created_at?:        string;
+}
+
 // ─── Categories ───────────────────────────────────────────────────────────────
 
 export const EXPENSE_CATEGORIES = [

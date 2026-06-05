@@ -11,6 +11,8 @@ export interface FixedBill {
   active_months: number[] | null; // null = todos os meses
   due_day: number;
   due_month_offset: number; // 0 = vence no mesmo mês, 1 = vence no mês seguinte (ex: Light)
+  competence_month?: string;     // YYYY-MM: mês a que a conta se refere (ex: janeiro)
+  due_date?: string;             // YYYY-MM-DD: data real de vencimento (ex: quando você paga)
   account: string | null;
   keywords: string[] | null;
   notes: string | null;
