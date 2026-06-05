@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAddFixedBill, useUpdateFixedBill, type FixedBill } from '@/hooks/useFixedBills';
 import { useAccounts } from '@/hooks/useAccounts';
 import { EXPENSE_CATEGORIES } from '@/lib/supabase';
+import { parseMoney } from '@/lib/financial';
 import { toast } from 'sonner';
 
 const MONTH_LABELS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -75,7 +76,7 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
     const payload = {
       name:                  form.name.trim(),
       category:              form.category,
-      expected_amount:       form.expected_amount ? parseFloat(form.expected_amount) : null,
+      expected_amount:       form.expected_amount ? parseMoney(form.expected_amount) : null,
       active_months,
       due_day:               parseInt(form.due_day || '10', 10),
       due_month_offset:      form.due_month_offset,
@@ -86,9 +87,9 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
       notes:                 form.notes || null,
       active:                form.active,
       sort_order:            bill?.sort_order ?? 99,
-      late_fee_amount:       form.late_fee_amount ? parseFloat(form.late_fee_amount) : 0,
+      late_fee_amount:       form.late_fee_amount ? parseMoney(form.late_fee_amount) : 0,
       late_fee_type:         form.late_fee_type,
-      daily_interest_amount: form.daily_interest_amount ? parseFloat(form.daily_interest_amount) : 0,
+      daily_interest_amount: form.daily_interest_amount ? parseMoney(form.daily_interest_amount) : 0,
       daily_interest_type:   form.daily_interest_type,
     };
 
@@ -141,8 +142,8 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
             <div>
               <Label>Valor esperado (R$)</Label>
               <Input
-                type="number" step="0.01" min="0"
-                placeholder="Ex: 350,00"
+                type="text" inputMode="decimal"
+                placeholder="Ex: 1.610,16"
                 value={form.expected_amount}
                 onChange={e => setForm(f => ({ ...f, expected_amount: e.target.value }))}
                 className="mt-1"
@@ -195,7 +196,7 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
               <Label className="text-xs">Multa por atraso (cobrada uma vez)</Label>
               <div className="flex gap-2 mt-1">
                 <Input
-                  type="number" step="0.01" min="0"
+                  type="text" inputMode="decimal"
                   placeholder="Ex: 33,33"
                   value={form.late_fee_amount}
                   onChange={e => setForm(f => ({ ...f, late_fee_amount: e.target.value }))}
@@ -219,7 +220,7 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
               <Label className="text-xs">Juros por dia de atraso</Label>
               <div className="flex gap-2 mt-1">
                 <Input
-                  type="number" step="0.0001" min="0"
+                  type="text" inputMode="decimal"
                   placeholder="Ex: 0,56"
                   value={form.daily_interest_amount}
                   onChange={e => setForm(f => ({ ...f, daily_interest_amount: e.target.value }))}

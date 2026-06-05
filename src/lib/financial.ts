@@ -6,6 +6,40 @@ export const fmt = (value: number) =>
 export const fmtCompact = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact' }).format(value);
 
+/**
+ * Converte string monetária BR ou US para number.
+ * Aceita: "1.000,50" (BR), "1000.50" (US), "1000,50", "1000", "R$ 1.000,50"
+ * Retorna 0 para entradas inválidas/vazias.
+ *
+ * Lógica:
+ * - Se tem vírgula → formato BR: remove pontos (milhares), troca vírgula por ponto
+ * - Se tem múltiplos pontos → também formato BR: remove pontos
+ * - Caso contrário → formato US ou número simples
+ */
+export function parseMoney(input: string | number | null | undefined): number {
+  if (input == null || input === '') return 0;
+  if (typeof input === 'number') return isFinite(input) ? input : 0;
+
+  // Remove R$, espaços, e qualquer letra
+  let s = String(input).trim().replace(/[^\d.,\-]/g, '');
+  if (!s) return 0;
+
+  const hasComma = s.includes(',');
+  const dotCount = (s.match(/\./g) || []).length;
+
+  if (hasComma) {
+    // Formato BR: "1.000,50" → "1000.50"
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (dotCount > 1) {
+    // Múltiplos pontos sem vírgula: "1.000.000" → "1000000"
+    s = s.replace(/\./g, '');
+  }
+  // Se for "1000.50" (1 ponto e sem vírgula), fica como está (formato US válido)
+
+  const n = parseFloat(s);
+  return isFinite(n) ? n : 0;
+}
+
 export const currentMonth = () => new Date().toISOString().slice(0, 7);
 
 export const lastNMonths = (n: number): string[] =>

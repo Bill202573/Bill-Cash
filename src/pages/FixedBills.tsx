@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   Check, X, AlertTriangle, Clock,
   Plus, Pencil, Trash2, CalendarCheck, ChevronLeft, ChevronRight,
+  Search, Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +16,8 @@ import {
   billAppliesToMonth, getBillCellStatus, calculateLateFee,
   type FixedBill, type FixedBillPayment, type BillCellStatus,
 } from '@/hooks/useFixedBills';
-import { fmt } from '@/lib/financial';
+import { useTransactions } from '@/hooks/useTransactions';
+import { fmt, parseMoney } from '@/lib/financial';
 import { toast } from 'sonner';
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -128,6 +130,26 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
     payment?.paid_date ?? new Date().toISOString().slice(0, 10),
   );
 
+  // === Busca de transações para conciliação manual ===
+  const [showSearch, setShowSearch] = useState(false);
+  const initialKeyword = bill.keywords?.[0] ?? bill.name.split(' ')[0] ?? '';
+  const [searchTerm, setSearchTerm] = useState(initialKeyword);
+  const { data: allTransactions = [] } = useTransactions();
+
+  const searchResults = useMemo(() => {
+    if (!showSearch || !searchTerm.trim()) return [];
+    const term = searchTerm.trim().toLowerCase();
+    return allTransactions
+      .filter(tx => {
+        if (tx.type !== 'expense') return false;
+        const desc = (tx.description ?? '').toLowerCase();
+        const cat  = (tx.category    ?? '').toLowerCase();
+        return desc.includes(term) || cat.includes(term);
+      })
+      .sort((a, b) => b.date.localeCompare(a.date)) // mais recentes primeiro
+      .slice(0, 30);
+  }, [showSearch, searchTerm, allTransactions]);
+
   const saveEntry  = useSaveBillEntry();
   const markPaid   = useMarkBillPaid();
   const markUnpaid = useMarkBillUnpaid();
@@ -136,16 +158,17 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
 
   /** Salva o cadastro da conta SEM pagamento (apenas valor + vencimento) */
   const handleSaveEntry = async () => {
-    if (!expectedAmount) { toast.error('Informe o valor da conta'); return; }
-    if (!dueDate)        { toast.error('Informe a data de vencimento'); return; }
+    const amount = parseMoney(expectedAmount);
+    if (amount <= 0) { toast.error('Informe um valor válido para a conta'); return; }
+    if (!dueDate)    { toast.error('Informe a data de vencimento'); return; }
     try {
       await saveEntry.mutateAsync({
         bill_id:         bill.id,
         year_month:      yearMonth,
-        expected_amount: parseFloat(expectedAmount),
+        expected_amount: amount,
         due_date:        dueDate,
       });
-      toast.success('Conta salva!');
+      toast.success(`Conta salva: ${fmt(amount)}`);
       onClose();
     } catch {
       toast.error('Erro ao salvar conta');
@@ -154,19 +177,20 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
 
   /** Marca como pago — preserva expected_amount e due_date se já cadastrados */
   const handlePay = async () => {
-    if (!paidAmount) { toast.error('Informe o valor pago'); return; }
+    const paid = parseMoney(paidAmount);
+    if (paid <= 0) { toast.error('Informe um valor válido para o pagamento'); return; }
     try {
       await markPaid.mutateAsync({
         bill_id:         bill.id,
         year_month:      yearMonth,
-        expected_amount: expectedAmount ? parseFloat(expectedAmount) : null,
+        expected_amount: expectedAmount ? parseMoney(expectedAmount) : null,
         due_date:        dueDate || null,
-        paid_amount:     parseFloat(paidAmount),
+        paid_amount:     paid,
         paid_date:       paidDate,
         transaction_id:  null,
         notes:           null,
       });
-      toast.success('Pagamento registrado!');
+      toast.success(`Pagamento registrado: ${fmt(paid)}`);
       onClose();
     } catch {
       toast.error('Erro ao registrar pagamento');
@@ -180,6 +204,26 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
       toast.success('Pagamento desfeito');
       onClose();
     } catch { toast.error('Erro'); }
+  };
+
+  /** Concilia diretamente com uma transação — registra pagamento usando seus dados */
+  const handleReconcile = async (tx: { id: string; amount: number; date: string }) => {
+    try {
+      await markPaid.mutateAsync({
+        bill_id:         bill.id,
+        year_month:      yearMonth,
+        expected_amount: expectedAmount ? parseMoney(expectedAmount) : null,
+        due_date:        dueDate || null,
+        paid_amount:     tx.amount,
+        paid_date:       tx.date,
+        transaction_id:  tx.id,
+        notes:           null,
+      });
+      toast.success(`Conciliada: ${fmt(tx.amount)} em ${new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}`);
+      onClose();
+    } catch {
+      toast.error('Erro ao conciliar');
+    }
   };
 
   const isPaid = status === 'paid';
@@ -279,13 +323,18 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Valor da conta (R$)</Label>
-                <Input type="number" step="0.01" min="0"
+                <Input type="text" inputMode="decimal"
                   value={expectedAmount}
                   onChange={e => setExpectedAmount(e.target.value)}
-                  placeholder="0,00"
+                  placeholder="Ex: 1.610,16"
                   className="mt-1 h-9"
                   disabled={isPaid}
                 />
+                {expectedAmount && parseMoney(expectedAmount) > 0 && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    = {fmt(parseMoney(expectedAmount))}
+                  </p>
+                )}
               </div>
               <div>
                 <Label className="text-xs">Data de vencimento</Label>
@@ -332,12 +381,17 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs">Valor pago (R$)</Label>
-                      <Input type="number" step="0.01" min="0"
+                      <Input type="text" inputMode="decimal"
                         value={paidAmount}
                         onChange={e => setPaidAmount(e.target.value)}
-                        placeholder="0,00"
+                        placeholder="Ex: 1.610,16"
                         className="mt-1 h-9"
                       />
+                      {paidAmount && parseMoney(paidAmount) > 0 && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          = {fmt(parseMoney(paidAmount))}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <Label className="text-xs">Data do pagamento</Label>
@@ -353,6 +407,72 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
                     disabled={markPaid.isPending || !paidAmount}>
                     <Check className="h-4 w-4 mr-2" /> Confirmar pagamento
                   </Button>
+                </div>
+              )}
+
+              {/* === Bloco 3: Buscar transação para conciliar === */}
+              <Button
+                variant="outline"
+                className="w-full justify-center"
+                onClick={() => setShowSearch(!showSearch)}>
+                {showSearch ? '▼' : '▶'} 🔍 Buscar transação para conciliar
+              </Button>
+
+              {showSearch && (
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-3 animate-in fade-in">
+                  <p className="text-xs font-medium text-primary uppercase tracking-wide">
+                    Conciliação manual
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Busque uma transação pelo nome (ex: Light, CEG, Protel) e clique para conciliar.
+                    O sistema vai usar o valor e a data da transação.
+                  </p>
+
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Digite parte do nome..."
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                      className="h-9 pl-9"
+                      autoFocus
+                    />
+                  </div>
+
+                  {searchTerm.trim() && (
+                    <p className="text-xs text-muted-foreground">
+                      {searchResults.length === 0
+                        ? 'Nenhuma transação encontrada'
+                        : `${searchResults.length} transação(ões) encontrada(s) — clique para conciliar`}
+                    </p>
+                  )}
+
+                  <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                    {searchResults.map(tx => (
+                      <button
+                        key={tx.id}
+                        onClick={() => handleReconcile(tx)}
+                        disabled={markPaid.isPending}
+                        className="w-full flex items-center justify-between p-2 rounded-md border border-border/40 bg-background/40 hover:bg-primary/10 hover:border-primary/30 transition-colors text-left"
+                      >
+                        <div className="min-w-0 mr-2">
+                          <p className="text-xs font-medium truncate">
+                            {tx.description}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')} · {tx.account} · <span className="capitalize">{tx.category}</span>
+                          </p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-sm font-bold text-expense">{fmt(tx.amount)}</p>
+                          <p className="text-xs text-primary flex items-center gap-0.5">
+                            <Zap className="h-3 w-3" /> Conciliar
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
