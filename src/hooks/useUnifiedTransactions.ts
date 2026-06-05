@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTransactions } from './useTransactions';
 import { useCardExpenses } from './useCardExpenses';
 import { useCreditCards } from './useCreditCards';
+import { useCardBills } from './useCardBills';
 import { mergeCardExpensesAsTransactions } from '@/lib/cardIntegration';
 import type { Transaction } from '@/lib/supabase';
 
@@ -60,19 +61,21 @@ export function useUnifiedTransactions(): {
   const { data: rawTransactions = [], isLoading: l1 } = useTransactions();
   const { data: cardExpenses    = [], isLoading: l2 } = useCardExpenses();
   const { data: cards           = [], isLoading: l3 } = useCreditCards();
+  const { data: bills           = [], isLoading: l4 } = useCardBills();
 
   const transactions = useMemo(
     () => mergeCardExpensesAsTransactions(rawTransactions, cardExpenses, {
       includeCardExpenses,
       cards,
+      bills,
     }),
-    [rawTransactions, cardExpenses, cards, includeCardExpenses],
+    [rawTransactions, cardExpenses, cards, bills, includeCardExpenses],
   );
 
   return {
     transactions,
     includeCardExpenses,
     setIncludeCardExpenses,
-    isLoading: l1 || l2 || l3,
+    isLoading: l1 || l2 || l3 || l4,
   };
 }

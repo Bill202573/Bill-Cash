@@ -19,6 +19,7 @@ import {
   getMonthlySummary,
   getCategoryBreakdown,
   getIncomeCategoryBreakdown,
+  getCategoryBreakdownWithSubs,
   getMonthlyChartData,
   calculateHealthScore,
   generateInsights,
@@ -58,6 +59,8 @@ export default function Dashboard() {
   const summary          = useMemo(() => getMonthlySummary(transactions, selectedMonth),         [transactions, selectedMonth]);
   const expenseCategories= useMemo(() => getCategoryBreakdown(transactions, selectedMonth),      [transactions, selectedMonth]);
   const incomeCategories = useMemo(() => getIncomeCategoryBreakdown(transactions, selectedMonth),[transactions, selectedMonth]);
+  const expenseCatsWithSubs = useMemo(() => getCategoryBreakdownWithSubs(transactions, selectedMonth, 'expense'), [transactions, selectedMonth]);
+  const incomeCatsWithSubs  = useMemo(() => getCategoryBreakdownWithSubs(transactions, selectedMonth, 'income'),  [transactions, selectedMonth]);
   const monthTxs         = useMemo(() => transactions.filter(t => t.date.startsWith(selectedMonth)), [transactions, selectedMonth]);
 
   // These always use the current real month (health + chart are "now" metrics)
@@ -152,11 +155,11 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* ── Demonstrativo por categoria (full width) ── */}
+      {/* ── Demonstrativo por categoria (full width, com subcategorias expandíveis) ── */}
       <div className="mb-6">
         <CategoryStatement
-          expenses={expenseCategories}
-          incomes={incomeCategories}
+          expenses={expenseCatsWithSubs}
+          incomes={incomeCatsWithSubs}
           totalExpenses={summary.expenses}
           totalIncome={summary.income}
         />

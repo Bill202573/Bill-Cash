@@ -64,6 +64,76 @@ export function getIncomeCategoryBreakdown(transactions: Transaction[], month: s
     .sort((a, b) => b.amount - a.amount);
 };
 
+/**
+ * Como getCategoryBreakdown / getIncomeCategoryBreakdown, mas cada
+ * categoria também traz a quebra por subcategoria (apenas linhas que
+ * têm subcategoria preenchida; o restante fica em "(sem subcategoria)").
+ *
+ * Os percentuais da subcategoria são relativos ao total da categoria pai.
+ */
+export interface SubcategoryBreakdown {
+  name:       string;
+  amount:     number;
+  count:      number;
+  percentage: number;     // 0–100, % dentro da categoria pai
+}
+
+export interface CategoryWithSubsBreakdown {
+  name:           string;
+  amount:         number;
+  count:          number;
+  percentage:     number; // 0–100, % do total geral
+  subcategories:  SubcategoryBreakdown[];
+}
+
+export function getCategoryBreakdownWithSubs(
+  transactions: Transaction[],
+  month:        string,
+  type:         'expense' | 'income',
+): CategoryWithSubsBreakdown[] {
+  const txs = transactions.filter(t => t.date.startsWith(month) && t.type === type);
+  const total = txs.reduce((s, t) => s + t.amount, 0);
+
+  const byCat: Record<string, {
+    amount: number;
+    count:  number;
+    subs:   Map<string, { amount: number; count: number }>;
+  }> = {};
+
+  for (const t of txs) {
+    if (!byCat[t.category]) {
+      byCat[t.category] = { amount: 0, count: 0, subs: new Map() };
+    }
+    byCat[t.category].amount += t.amount;
+    byCat[t.category].count  += 1;
+
+    const subName = t.subcategory?.trim() || '(sem subcategoria)';
+    const cur = byCat[t.category].subs.get(subName) ?? { amount: 0, count: 0 };
+    cur.amount += t.amount;
+    cur.count  += 1;
+    byCat[t.category].subs.set(subName, cur);
+  }
+
+  return Object.entries(byCat)
+    .map(([name, { amount, count, subs }]) => ({
+      name,
+      amount,
+      count,
+      percentage: total > 0 ? (amount / total) * 100 : 0,
+      subcategories: [...subs.entries()]
+        // Esconde "(sem subcategoria)" se for o único bucket (não agrega valor)
+        .filter(([sn], _, arr) => !(arr.length === 1 && sn === '(sem subcategoria)'))
+        .map(([sName, s]) => ({
+          name:       sName,
+          amount:     s.amount,
+          count:      s.count,
+          percentage: amount > 0 ? (s.amount / amount) * 100 : 0,
+        }))
+        .sort((a, b) => b.amount - a.amount),
+    }))
+    .sort((a, b) => b.amount - a.amount);
+}
+
 export function getMonthlyChartData(transactions: Transaction[]) {
   const months = lastNMonths(6).reverse();
   return months.map(month => {
