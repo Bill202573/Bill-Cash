@@ -12,7 +12,7 @@ import {
   useFixedBills, useFixedBillPayments,
   useMarkBillPaid, useMarkBillUnpaid, useDeleteFixedBill,
   useSaveBillEntry,
-  billAppliesToMonth, getBillCellStatus,
+  billAppliesToMonth, getBillCellStatus, calculateLateFee,
   type FixedBill, type FixedBillPayment, type BillCellStatus,
 } from '@/hooks/useFixedBills';
 import { fmt } from '@/lib/financial';
@@ -214,6 +214,42 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
               <><Clock className="h-4 w-4" /> A vencer{payment?.due_date ? ` em ${new Date(payment.due_date + 'T12:00:00').toLocaleDateString('pt-BR')}` : ''}</>
             )}
           </div>
+
+          {/* Cálculo de multa e juros — só aparece se em atraso e tem regras configuradas */}
+          {status === 'overdue' && (() => {
+            const calc = calculateLateFee(bill, payment);
+            if (calc.extraCharges <= 0) return null;
+            return (
+              <div className="bg-expense/5 border border-expense/30 rounded-lg p-3 text-xs space-y-1.5">
+                <p className="font-semibold text-expense flex items-center gap-1.5">
+                  ⚠️ Atualizado para hoje ({calc.daysLate} {calc.daysLate === 1 ? 'dia' : 'dias'} de atraso)
+                </p>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Valor original</span>
+                  <span>{fmt(calc.baseAmount)}</span>
+                </div>
+                {calc.lateFee > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>+ Multa</span>
+                    <span>{fmt(calc.lateFee)}</span>
+                  </div>
+                )}
+                {calc.interestTotal > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>+ Juros ({fmt(calc.interestPerDay)}/dia × {calc.daysLate})</span>
+                    <span>{fmt(calc.interestTotal)}</span>
+                  </div>
+                )}
+                <div className="border-t border-expense/20 pt-1.5 flex justify-between font-bold text-expense">
+                  <span>Total a pagar hoje</span>
+                  <span>{fmt(calc.totalDue)}</span>
+                </div>
+                <p className="text-muted-foreground italic">
+                  Cobrança extra: <span className="text-expense font-medium">{fmt(calc.extraCharges)}</span>
+                </p>
+              </div>
+            );
+          })()}
 
           {/* === Bloco 1: Dados da conta === */}
           <div className="bg-secondary/30 border border-border/30 rounded-lg p-3 space-y-3">

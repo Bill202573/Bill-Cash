@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type FeeType = 'fixed' | 'percentage';
+
 export interface FixedBill {
   id: string;
   name: string;
@@ -18,6 +20,13 @@ export interface FixedBill {
   notes: string | null;
   active: boolean;
   sort_order: number;
+  // ─── Multa e juros (cobrados em caso de atraso) ───────────────────────────
+  /** Multa única por atraso. 'fixed' = R$, 'percentage' = % do valor */
+  late_fee_amount?: number | null;
+  late_fee_type?: FeeType;
+  /** Juros por dia de atraso. 'fixed' = R$/dia, 'percentage' = %/dia */
+  daily_interest_amount?: number | null;
+  daily_interest_type?: FeeType;
   created_at?: string;
 }
 
@@ -89,6 +98,95 @@ export function getBillCellStatus(
 
   // Vencimento passou sem pagamento → atrasado
   return 'overdue';
+}
+
+// ─── Cálculo de multa e juros ────────────────────────────────────────────────
+
+export interface LateFeeBreakdown {
+  /** Dias de atraso (0 se não está atrasado) */
+  daysLate: number;
+  /** Valor base da conta */
+  baseAmount: number;
+  /** Multa única (cobrada uma vez) */
+  lateFee: number;
+  /** Juros total acumulado (juros diário × dias de atraso) */
+  interestTotal: number;
+  /** Juros por dia (para mostrar na UI) */
+  interestPerDay: number;
+  /** Valor total atualizado (base + multa + juros) */
+  totalDue: number;
+  /** Total cobrado a mais (multa + juros) */
+  extraCharges: number;
+}
+
+/**
+ * Calcula multa, juros e valor total atualizado de uma conta em atraso.
+ * Retorna zeros se a conta não está atrasada ou se os campos não estão preenchidos.
+ *
+ * @param bill        Template da conta fixa (tem regras de multa/juros)
+ * @param payment     Instância mensal (tem o valor e vencimento daquele mês)
+ * @param today       Data de referência (geralmente new Date())
+ */
+export function calculateLateFee(
+  bill: FixedBill,
+  payment: FixedBillPayment | undefined,
+  today: Date = new Date(),
+): LateFeeBreakdown {
+  const empty: LateFeeBreakdown = {
+    daysLate: 0,
+    baseAmount: payment?.expected_amount ?? bill.expected_amount ?? 0,
+    lateFee: 0,
+    interestTotal: 0,
+    interestPerDay: 0,
+    totalDue: payment?.expected_amount ?? bill.expected_amount ?? 0,
+    extraCharges: 0,
+  };
+
+  // Se já foi pago, não há mais juros
+  if (isPaymentDone(payment)) return empty;
+
+  // Sem due_date conhecido → não conseguimos calcular
+  const dueStr = payment?.due_date;
+  if (!dueStr) return empty;
+
+  const due = new Date(dueStr + 'T12:00:00');
+  const todayMidday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
+
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const daysLate = Math.max(0, Math.floor((todayMidday.getTime() - due.getTime()) / msPerDay));
+
+  if (daysLate <= 0) return empty;
+
+  const baseAmount = payment?.expected_amount ?? bill.expected_amount ?? 0;
+  if (baseAmount <= 0) return empty;
+
+  // Multa única
+  const lateFeeAmt  = bill.late_fee_amount ?? 0;
+  const lateFeeType = bill.late_fee_type ?? 'fixed';
+  const lateFee = lateFeeAmt > 0
+    ? (lateFeeType === 'percentage' ? baseAmount * (lateFeeAmt / 100) : lateFeeAmt)
+    : 0;
+
+  // Juros diário
+  const intAmt  = bill.daily_interest_amount ?? 0;
+  const intType = bill.daily_interest_type ?? 'fixed';
+  const interestPerDay = intAmt > 0
+    ? (intType === 'percentage' ? baseAmount * (intAmt / 100) : intAmt)
+    : 0;
+  const interestTotal = interestPerDay * daysLate;
+
+  const extraCharges = lateFee + interestTotal;
+  const totalDue     = baseAmount + extraCharges;
+
+  return {
+    daysLate,
+    baseAmount,
+    lateFee,
+    interestTotal,
+    interestPerDay,
+    totalDue,
+    extraCharges,
+  };
 }
 
 // ─── Hooks ───────────────────────────────────────────────────────────────────

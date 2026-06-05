@@ -30,17 +30,22 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
   );
 
   const [form, setForm] = useState({
-    name:              bill?.name              ?? '',
-    category:          bill?.category          ?? 'Utilidades',
-    expected_amount:   bill?.expected_amount?.toString() ?? '',
-    due_day:           bill?.due_day?.toString() ?? '10',
-    due_month_offset:  bill?.due_month_offset   ?? 0,
-    competence_month:  bill?.competence_month  ?? new Date().toISOString().slice(0, 7),
-    due_date:          bill?.due_date          ?? new Date().toISOString().slice(0, 10),
-    account:           bill?.account           ?? '',
-    keywords:          bill?.keywords?.join(', ') ?? '',
-    notes:             bill?.notes             ?? '',
-    active:            bill?.active            ?? true,
+    name:                  bill?.name              ?? '',
+    category:              bill?.category          ?? 'Utilidades',
+    expected_amount:       bill?.expected_amount?.toString() ?? '',
+    due_day:               bill?.due_day?.toString() ?? '10',
+    due_month_offset:      bill?.due_month_offset   ?? 0,
+    competence_month:      bill?.competence_month  ?? new Date().toISOString().slice(0, 7),
+    due_date:              bill?.due_date          ?? new Date().toISOString().slice(0, 10),
+    account:               bill?.account           ?? '',
+    keywords:              bill?.keywords?.join(', ') ?? '',
+    notes:                 bill?.notes             ?? '',
+    active:                bill?.active            ?? true,
+    // Multa e juros (cobrados em caso de atraso)
+    late_fee_amount:       bill?.late_fee_amount?.toString()       ?? '',
+    late_fee_type:         (bill?.late_fee_type ?? 'fixed') as 'fixed' | 'percentage',
+    daily_interest_amount: bill?.daily_interest_amount?.toString() ?? '',
+    daily_interest_type:   (bill?.daily_interest_type ?? 'fixed') as 'fixed' | 'percentage',
   });
   const [recurrence, setRecurrence] = useState<Recurrence>(initRecurrence);
   const [months, setMonths] = useState<boolean[]>(initMonths);
@@ -68,19 +73,23 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
       .filter(Boolean);
 
     const payload = {
-      name:              form.name.trim(),
-      category:          form.category,
-      expected_amount:   form.expected_amount ? parseFloat(form.expected_amount) : null,
+      name:                  form.name.trim(),
+      category:              form.category,
+      expected_amount:       form.expected_amount ? parseFloat(form.expected_amount) : null,
       active_months,
-      due_day:           parseInt(form.due_day || '10', 10),
-      due_month_offset:  form.due_month_offset,
-      competence_month:  form.competence_month || null,
-      due_date:          form.due_date || null,
-      account:           form.account || null,
-      keywords:          keywords.length ? keywords : null,
-      notes:             form.notes || null,
-      active:            form.active,
-      sort_order:        bill?.sort_order ?? 99,
+      due_day:               parseInt(form.due_day || '10', 10),
+      due_month_offset:      form.due_month_offset,
+      competence_month:      form.competence_month || null,
+      due_date:              form.due_date || null,
+      account:               form.account || null,
+      keywords:              keywords.length ? keywords : null,
+      notes:                 form.notes || null,
+      active:                form.active,
+      sort_order:            bill?.sort_order ?? 99,
+      late_fee_amount:       form.late_fee_amount ? parseFloat(form.late_fee_amount) : 0,
+      late_fee_type:         form.late_fee_type,
+      daily_interest_amount: form.daily_interest_amount ? parseFloat(form.daily_interest_amount) : 0,
+      daily_interest_type:   form.daily_interest_type,
     };
 
     try {
@@ -170,6 +179,65 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {form.due_month_offset === 1 ? 'Ex: Light — vence no mês após a competência' : 'Vence no mesmo mês da competência'}
+              </p>
+            </div>
+          </div>
+
+          {/* Multa e juros */}
+          <div className="bg-expense/5 border border-expense/20 rounded-lg p-3 space-y-3">
+            <p className="text-xs font-medium text-expense">⚠️ Multa e juros por atraso</p>
+            <p className="text-xs text-muted-foreground">
+              O sistema calcula automaticamente a multa e os juros diários nas contas em atraso.
+            </p>
+
+            {/* Multa única */}
+            <div>
+              <Label className="text-xs">Multa por atraso (cobrada uma vez)</Label>
+              <div className="flex gap-2 mt-1">
+                <Input
+                  type="number" step="0.01" min="0"
+                  placeholder="Ex: 33,33"
+                  value={form.late_fee_amount}
+                  onChange={e => setForm(f => ({ ...f, late_fee_amount: e.target.value }))}
+                  className="flex-1"
+                />
+                <Select
+                  value={form.late_fee_type}
+                  onValueChange={v => setForm(f => ({ ...f, late_fee_type: v as 'fixed' | 'percentage' }))}
+                >
+                  <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fixed">R$</SelectItem>
+                    <SelectItem value="percentage">%</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Juros diário */}
+            <div>
+              <Label className="text-xs">Juros por dia de atraso</Label>
+              <div className="flex gap-2 mt-1">
+                <Input
+                  type="number" step="0.0001" min="0"
+                  placeholder="Ex: 0,56"
+                  value={form.daily_interest_amount}
+                  onChange={e => setForm(f => ({ ...f, daily_interest_amount: e.target.value }))}
+                  className="flex-1"
+                />
+                <Select
+                  value={form.daily_interest_type}
+                  onValueChange={v => setForm(f => ({ ...f, daily_interest_type: v as 'fixed' | 'percentage' }))}
+                >
+                  <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fixed">R$/dia</SelectItem>
+                    <SelectItem value="percentage">%/dia</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Exemplo Protel: multa R$ 33,33 + juros R$ 0,56/dia
               </p>
             </div>
           </div>
