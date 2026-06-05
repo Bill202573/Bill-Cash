@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Pencil, Trash2, Undo2 } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Pencil, Trash2, Undo2, CreditCard } from 'lucide-react';
 import { useDeleteTransaction } from '@/hooks/useTransactions';
 import { TransactionForm } from './TransactionForm';
 import { MarkAsTransferModal } from './MarkAsTransferModal';
@@ -133,19 +133,28 @@ export default function TransactionList({ transactions, limit, showActions = tru
         <div className="space-y-0.5">
           {items.map(tx => {
             const parsed = parseDescription(tx.description);
+            // Despesas de cartão vêm com id prefixado "card-" pelo hook
+            // useUnifiedTransactions. Elas não são editáveis aqui — devem ser
+            // gerenciadas na página de Cartões.
+            const isCardExpense = tx.id.startsWith('card-');
             return (
               <div
                 key={tx.id}
-                className="flex items-center gap-3 py-2.5 px-2 rounded-md hover:bg-secondary/50 transition-colors group"
-                title={parsed.bankDetail}
+                className={`flex items-center gap-3 py-2.5 px-2 rounded-md hover:bg-secondary/50 transition-colors group ${
+                  isCardExpense ? 'bg-primary/5' : ''
+                }`}
+                title={isCardExpense ? 'Despesa de cartão (gerencie em Cartões)' : parsed.bankDetail}
               >
                 {/* Ícone */}
                 <div className={`p-1.5 rounded-md flex-shrink-0 ${
-                  tx.type === 'income'  ? 'bg-income/10'
+                  isCardExpense        ? 'bg-primary/10'
+                : tx.type === 'income'  ? 'bg-income/10'
                 : tx.type === 'expense' ? 'bg-expense/10'
                 :                         'bg-primary/10'
                 }`}>
-                  {tx.type === 'income'
+                  {isCardExpense
+                    ? <CreditCard className="h-4 w-4 text-primary" />
+                  : tx.type === 'income'
                     ? <ArrowUpRight className="h-4 w-4 text-income" />
                   : tx.type === 'expense'
                     ? <ArrowDownRight className="h-4 w-4 text-expense" />
@@ -183,37 +192,48 @@ export default function TransactionList({ transactions, limit, showActions = tru
                 {/* Ações */}
                 {showActions && (
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    {tx.type === 'transfer' ? (
-                      <button
-                        onClick={() => handleUndoTransfer(tx)}
-                        className="p-1 rounded hover:bg-warning/10 text-muted-foreground hover:text-warning"
-                        title="Reverter transferência"
+                    {isCardExpense ? (
+                      <span
+                        className="text-[10px] px-2 py-0.5 rounded bg-primary/10 text-primary font-medium"
+                        title="Edite/delete esta despesa em Cartões"
                       >
-                        <Undo2 className="h-3.5 w-3.5" />
-                      </button>
+                        Cartão
+                      </span>
                     ) : (
-                      <button
-                        onClick={() => setMarking(tx)}
-                        className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary"
-                        title="Marcar como transferência"
-                      >
-                        <ArrowLeftRight className="h-3.5 w-3.5" />
-                      </button>
+                      <>
+                        {tx.type === 'transfer' ? (
+                          <button
+                            onClick={() => handleUndoTransfer(tx)}
+                            className="p-1 rounded hover:bg-warning/10 text-muted-foreground hover:text-warning"
+                            title="Reverter transferência"
+                          >
+                            <Undo2 className="h-3.5 w-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setMarking(tx)}
+                            className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary"
+                            title="Marcar como transferência"
+                          >
+                            <ArrowLeftRight className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setEditing(tx)}
+                          className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
+                          title="Editar"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(tx.id)}
+                          className="p-1 rounded hover:bg-expense/10 text-muted-foreground hover:text-expense"
+                          title="Excluir"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </>
                     )}
-                    <button
-                      onClick={() => setEditing(tx)}
-                      className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
-                      title="Editar"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(tx.id)}
-                      className="p-1 rounded hover:bg-expense/10 text-muted-foreground hover:text-expense"
-                      title="Excluir"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
                   </div>
                 )}
               </div>

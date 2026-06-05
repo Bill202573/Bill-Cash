@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { HealthScore } from '@/components/HealthScore';
 import { InsightPanel } from '@/components/InsightPanel';
-import { useTransactions } from '@/hooks/useTransactions';
+import { IncludeCardsToggle } from '@/components/IncludeCardsToggle';
+import { useUnifiedTransactions } from '@/hooks/useUnifiedTransactions';
 import { useDebts } from '@/hooks/useDebts';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { useBudgetGoals } from '@/hooks/useBudgetGoals';
@@ -14,7 +15,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { fmtCompact } from '@/lib/financial';
 
 export default function Insights() {
-  const { data: transactions = [] } = useTransactions();
+  const { transactions } = useUnifiedTransactions();
   const { data: debts = [] } = useDebts();
   const { data: cards = [] } = useCreditCards();
   const { data: goals = [] } = useBudgetGoals();
@@ -54,6 +55,10 @@ export default function Insights() {
         <p className="text-muted-foreground text-sm mt-1">
           Análise inteligente da sua situação financeira
         </p>
+      </div>
+
+      <div className="mb-4">
+        <IncludeCardsToggle />
       </div>
 
       {/* Insight summary chips */}

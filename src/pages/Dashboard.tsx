@@ -10,7 +10,8 @@ import MonthlyChart from '@/components/MonthlyChart';
 import { HealthScore } from '@/components/HealthScore';
 import { InsightPanel } from '@/components/InsightPanel';
 import { TransactionForm } from '@/components/TransactionForm';
-import { useTransactions } from '@/hooks/useTransactions';
+import { IncludeCardsToggle } from '@/components/IncludeCardsToggle';
+import { useUnifiedTransactions } from '@/hooks/useUnifiedTransactions';
 import { useDebts } from '@/hooks/useDebts';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { useBudgetGoals } from '@/hooks/useBudgetGoals';
@@ -40,10 +41,10 @@ export default function Dashboard() {
   const [showForm,      setShowForm]      = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth());
 
-  const { data: transactions = [] } = useTransactions();
-  const { data: debts        = [] } = useDebts();
-  const { data: cards        = [] } = useCreditCards();
-  const { data: goals        = [] } = useBudgetGoals();
+  const { transactions } = useUnifiedTransactions();
+  const { data: debts = [] } = useDebts();
+  const { data: cards = [] } = useCreditCards();
+  const { data: goals = [] } = useBudgetGoals();
 
   // ── Month navigation ──────────────────────────────────────────────────────
   const monthIdx  = AVAILABLE_MONTHS.indexOf(selectedMonth);
@@ -112,6 +113,11 @@ export default function Dashboard() {
           <Plus className="h-4 w-4" />
           <span className="hidden sm:inline">Nova Transação</span>
         </Button>
+      </div>
+
+      {/* ── Toggle: incluir cartão por categoria ── */}
+      <div className="mb-4">
+        <IncludeCardsToggle />
       </div>
 
       {/* ── Summary cards ── */}

@@ -8,7 +8,10 @@ import TransactionList from '@/components/TransactionList';
 import { TransactionForm } from '@/components/TransactionForm';
 import { ImportModal } from '@/components/ImportModal';
 import { DeleteTransactionsModal } from '@/components/DeleteTransactionsModal';
+import { IncludeCardsToggle } from '@/components/IncludeCardsToggle';
 import { useTransactions } from '@/hooks/useTransactions';
+import { useUnifiedTransactions } from '@/hooks/useUnifiedTransactions';
+import { useCreditCards } from '@/hooks/useCreditCards';
 import { fmt, getMonthlySummary } from '@/lib/financial';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '@/lib/supabase';
 
@@ -24,7 +27,8 @@ export default function Transactions() {
   const [filterMonth, setFilterMonth] = useState('all');
   const [filterAccount, setFilterAccount] = useState('all');
 
-  const { data: transactions = [], isLoading } = useTransactions();
+  const { transactions, isLoading } = useUnifiedTransactions();
+  const { data: cards = [] } = useCreditCards();
   const deleteTransaction = useDeleteTransaction();
   const [showDuplicates, setShowDuplicates] = useState(false);
 
@@ -39,10 +43,14 @@ export default function Transactions() {
     return [...map.values()].filter(g => g.length > 1);
   }, [transactions]);
 
-  // Build account list from available transactions
+  // Build account list from available transactions + all registered cards
+  // (cards aparecem mesmo sem despesas confirmadas para você poder filtrar)
   const availableAccounts = useMemo(() => {
-    return [...new Set(transactions.map(t => t.account).filter(Boolean))].sort();
-  }, [transactions]);
+    const set = new Set<string>();
+    transactions.forEach(t => { if (t.account) set.add(t.account); });
+    cards.forEach(c => set.add(c.name));
+    return [...set].sort();
+  }, [transactions, cards]);
 
   // Build month options from available data
   const availableMonths = useMemo(() => {
@@ -92,6 +100,11 @@ export default function Transactions() {
             <span className="hidden sm:inline">Nova Transação</span>
           </Button>
         </div>
+      </div>
+
+      {/* Toggle: incluir cartão por categoria */}
+      <div className="mb-4">
+        <IncludeCardsToggle compact />
       </div>
 
       {/* Duplicate alert banner */}
