@@ -121,10 +121,13 @@ interface ModalState {
 }
 
 function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }) {
-  const { bill, yearMonth, status, payment } = state;
+  const { bill, yearMonth: initialYearMonth, status, payment } = state;
+
+  // Competência que o usuário escolhe para registrar — pode ser diferente de initialYearMonth!
+  const [yearMonth, setYearMonth] = useState(initialYearMonth);
 
   // Mês onde BUSCAR a transação — pode ser diferente da competência!
-  const [searchMonth, setSearchMonth] = useState(yearMonth);
+  const [searchMonth, setSearchMonth] = useState(initialYearMonth);
 
   const [paidAmount, setPaidAmount] = useState(
     payment?.paid_amount?.toString() ?? bill.expected_amount?.toString() ?? '',
