@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Upload, CheckCircle2, AlertTriangle, Receipt, Layers } from 'lucide-react';
-import { useAddCardExpense, useCardExpenses, useProjectInstallments } from '@/hooks/useCardExpenses';
+import { useAddCardExpense, useCardExpenses, useProjectInstallments, recalculateManyBills } from '@/hooks/useCardExpenses';
 import { parseFile } from '@/lib/importParser';
 import { fmt } from '@/lib/financial';
 import { EXPENSE_CATEGORIES, supabase, type CreditCard } from '@/lib/supabase';
@@ -197,10 +197,13 @@ export function CardImportModal({ open, onClose, card }: Props) {
     let projected = 0;
     let merged = 0;
     const errs: string[] = [];
+    const affectedBillIds = new Set<string>();
 
     for (const row of selected) {
       try {
         // 1) Se é parcela 1/N E o usuário pediu projeção: cria todas as N
+        //    A parcela atual entra como CONFIRMED (veio da fatura oficial),
+        //    as futuras como PENDING (ainda não foram cobradas)
         if (row.parcela && projectFutureParcelas && !row.matchedExpenseId) {
           const result = await projectExp.mutateAsync({
             cardId:              card.id,
@@ -214,34 +217,47 @@ export function CardImportModal({ open, onClose, card }: Props) {
             purchaseDate:        row.date,
             category:            row.category || undefined,
           });
+          // Promove a parcela atual para 'confirmed' (veio da fatura oficial)
+          const current = result.expenses.find(e => e.installment === row.parcela!.current);
+          if (current) {
+            await supabase
+              .from('card_expenses')
+              .update({ status: 'confirmed', origin: 'import' })
+              .eq('id', current.id);
+            if (current.bill_id) affectedBillIds.add(current.bill_id);
+          }
+          // Adiciona todos os bill_ids das parcelas projetadas para recalcular
+          result.expenses.forEach(e => { if (e.bill_id) affectedBillIds.add(e.bill_id); });
           count++;                                            // a parcela atual
           projected += (result.expenses.length - 1);          // as futuras
           continue;
         }
 
         // 2) Se há matching (parcela já existia como projeção):
-        //    atualiza a existente em vez de criar nova
+        //    PROMOVE para 'confirmed' + atualiza dados com os oficiais
         if (row.matchedExpenseId) {
-          const { error } = await supabase
+          const { data: updated, error } = await supabase
             .from('card_expenses')
             .update({
-              // Garante que a parcela está na fatura correta (do mês importado)
-              // e atualiza valor/desc caso tenham mudado
-              amount:       row.amount,
-              description:  row.description,
+              amount:        row.amount,
+              description:   row.description,
               purchase_date: row.date,
-              category:     row.category || undefined,
-              origin:       'import',
-              status:       'pending',
+              category:      row.category || undefined,
+              origin:        'import',
+              status:        'confirmed',   // ← vem da fatura oficial, está confirmada
             })
-            .eq('id', row.matchedExpenseId);
+            .eq('id', row.matchedExpenseId)
+            .select('bill_id')
+            .single();
           if (error) throw error;
+          if (updated?.bill_id) affectedBillIds.add(updated.bill_id);
           merged++;
           continue;
         }
 
         // 3) Caso comum: despesa sem parcela ou sem projeção solicitada
-        await addExpense.mutateAsync({
+        //    Entra como CONFIRMED — veio da fatura oficial do banco
+        const inserted = await addExpense.mutateAsync({
           cardId:            card.id,
           closingDay:        card.closing_day,
           dueDay:            card.due_day,
@@ -251,14 +267,23 @@ export function CardImportModal({ open, onClose, card }: Props) {
           category:          row.category || undefined,
           totalInstallments: 1,
           origin:            'import',
-          status:            'pending',
+          status:            'confirmed',
           forceBillMonthRef: billMonth,
         });
+        inserted.forEach(e => { if (e.bill_id) affectedBillIds.add(e.bill_id); });
         count++;
       } catch (e: any) {
         console.error('[CARD IMPORT ROW ERROR]', e);
         errs.push(e?.message ?? String(e));
       }
+    }
+
+    // Recalcula total_amount de TODAS as faturas afetadas
+    // (garante que o "Total" na sidebar reflete a soma real)
+    try {
+      await recalculateManyBills([...affectedBillIds]);
+    } catch (e) {
+      console.error('[RECALC ERROR]', e);
     }
 
     setImportedCount(count);

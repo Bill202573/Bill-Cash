@@ -123,3 +123,88 @@ export const EXPENSE_STATUS_COLOR: Record<string, string> = {
   confirmed: 'text-income bg-income/10',
   refunded:  'text-expense bg-expense/10',
 };
+
+// ─── Classificação de origem (Oficial/Manual/Projeção/Órfã) ──────────────────
+
+/**
+ * Identifica de onde veio uma despesa de cartão:
+ *
+ * - `official`: importada da fatura do banco e confirmada (status='confirmed' + origin='import')
+ *   → o banco já cobrou. Fonte da verdade.
+ *
+ * - `manual`: lançamento manual do usuário (origin='manual')
+ *   → você adicionou na mão, ainda pode estar pending ou já confirmou.
+ *
+ * - `projection`: parcela projetada de uma compra parcelada (purchase_group_id presente, pending)
+ *   → criada automaticamente quando você projetou as N parcelas. Vai virar 'official'
+ *     quando a fatura desse mês for importada do banco.
+ *
+ * - `orphan_projection`: projeção em uma fatura que JÁ DEVERIA TER vindo do banco
+ *   → fatura fechada (closing_date passou) e ainda está pending = não foi cobrada.
+ *   → talvez a compra foi cancelada, ou você marcou parcelas erradas.
+ *   → o sistema avisa para você revisar.
+ */
+export type ExpenseSource = 'official' | 'manual' | 'projection' | 'orphan_projection';
+
+export interface CardExpenseLike {
+  status: string;             // pending | confirmed | refunded
+  origin: string;             // import | manual
+  purchase_group_id?: string | null;
+}
+
+export interface CardBillLike {
+  closing_date?: string;      // YYYY-MM-DD
+  month_ref?:    string;      // YYYY-MM
+}
+
+export function classifyExpenseSource(
+  exp:   CardExpenseLike,
+  bill?: CardBillLike,
+  today: Date = new Date(),
+): ExpenseSource {
+  // Confirmada + veio do import = oficial do banco
+  if (exp.status === 'confirmed' && exp.origin === 'import') {
+    return 'official';
+  }
+
+  // Pendente + tem purchase_group_id = parcela projetada
+  if (exp.status === 'pending' && exp.purchase_group_id) {
+    // Se a fatura já fechou e ainda está pending, é órfã
+    const closing = bill?.closing_date;
+    if (closing) {
+      const closingDate = new Date(closing + 'T12:00:00');
+      if (closingDate < today) return 'orphan_projection';
+    } else if (bill?.month_ref) {
+      // Sem closing_date: usa o month_ref para inferir
+      // Se o mês já passou completamente, considera órfã
+      const [y, m] = bill.month_ref.split('-').map(Number);
+      const endOfMonth = new Date(y, m, 0, 23, 59, 59); // último dia do mês
+      if (endOfMonth < today) return 'orphan_projection';
+    }
+    return 'projection';
+  }
+
+  // Caso contrário (manual pending, manual confirmed) = manual
+  return 'manual';
+}
+
+export const EXPENSE_SOURCE_LABEL: Record<ExpenseSource, string> = {
+  official:          'Oficial',
+  manual:            'Manual',
+  projection:        'Projetada',
+  orphan_projection: 'Não cobrada',
+};
+
+export const EXPENSE_SOURCE_COLOR: Record<ExpenseSource, string> = {
+  official:          'text-income bg-income/10',
+  manual:            'text-foreground bg-secondary/40',
+  projection:        'text-primary bg-primary/10',
+  orphan_projection: 'text-warning bg-warning/15 border border-warning/30',
+};
+
+export const EXPENSE_SOURCE_ICON: Record<ExpenseSource, string> = {
+  official:          '✓',
+  manual:            '✎',
+  projection:        '🔮',
+  orphan_projection: '⚠',
+};

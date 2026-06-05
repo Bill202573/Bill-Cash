@@ -135,6 +135,7 @@ export function useAddCardExpense() {
           .select()
           .single();
         if (error) throw error;
+        await recalculateBillTotal(billId);
         return [data as CardExpense];
       }
 
@@ -158,8 +159,10 @@ export function useAddCardExpense() {
       if (diff !== 0) parts[parts.length - 1].amount += diff;
 
       const inserted: CardExpense[] = [];
+      const billIds: string[] = [];
       for (const p of parts) {
         const billId = await ensureBill(cardId, p.monthRef, closingDay, dueDay);
+        billIds.push(billId);
         const { data, error } = await supabase
           .from('card_expenses')
           .insert([{
@@ -181,6 +184,8 @@ export function useAddCardExpense() {
         if (error) throw error;
         inserted.push(data as CardExpense);
       }
+      // Recalcula totais de todas as faturas afetadas
+      await recalculateManyBills(billIds);
       return inserted;
     },
     onSuccess: () => {
@@ -194,6 +199,13 @@ export function useUpdateCardExpense() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<CardExpense> & { id: string }) => {
+      // Pega o bill_id atual e o futuro para recalcular ambos
+      const { data: before } = await supabase
+        .from('card_expenses')
+        .select('bill_id')
+        .eq('id', id)
+        .maybeSingle();
+
       const { data, error } = await supabase
         .from('card_expenses')
         .update(updates)
@@ -201,6 +213,10 @@ export function useUpdateCardExpense() {
         .select()
         .single();
       if (error) throw error;
+
+      const affected = [before?.bill_id, data.bill_id].filter(Boolean) as string[];
+      await recalculateManyBills(affected);
+
       return data as CardExpense;
     },
     onSuccess: () => {
@@ -216,11 +232,21 @@ export function useBulkUpdateCardExpenses() {
   return useMutation({
     mutationFn: async ({ ids, updates }: { ids: string[]; updates: Partial<CardExpense> }) => {
       if (ids.length === 0) return 0;
+      // Pega bill_ids antes
+      const { data: before } = await supabase
+        .from('card_expenses')
+        .select('bill_id')
+        .in('id', ids);
+
       const { error } = await supabase
         .from('card_expenses')
         .update(updates)
         .in('id', ids);
       if (error) throw error;
+
+      const affected = (before ?? []).map(r => r.bill_id).filter(Boolean) as string[];
+      await recalculateManyBills(affected);
+
       return ids.length;
     },
     onSuccess: () => {
@@ -234,8 +260,17 @@ export function useDeleteCardExpense() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Pega bill_id antes de deletar
+      const { data: before } = await supabase
+        .from('card_expenses')
+        .select('bill_id')
+        .eq('id', id)
+        .maybeSingle();
+
       const { error } = await supabase.from('card_expenses').delete().eq('id', id);
       if (error) throw error;
+
+      if (before?.bill_id) await recalculateBillTotal(before.bill_id);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['card_expenses'] });
@@ -290,12 +325,14 @@ export function useProjectInstallments() {
     }) => {
       const purchaseGroupId = groupId ?? crypto.randomUUID();
       const inserted: CardExpense[] = [];
+      const billIds: string[] = [];
 
       // Gera as parcelas: currentInstallment até totalInstallments
       for (let i = currentInstallment; i <= totalInstallments; i++) {
         const offset = i - currentInstallment;
         const monthRef = addMonthsToYYYYMM(currentBillMonthRef, offset);
         const billId   = await ensureBill(cardId, monthRef, closingDay, dueDay);
+        billIds.push(billId);
         const description = `${baseDescription} (${i}/${totalInstallments})`;
 
         // Já existe esta parcela com o mesmo grupo? (segurança contra dupla chamada)
@@ -350,6 +387,9 @@ export function useProjectInstallments() {
         inserted.push(data as CardExpense);
       }
 
+      // Recalcula totais de todas as faturas afetadas (current + futuras)
+      await recalculateManyBills(billIds);
+
       return { groupId: purchaseGroupId, expenses: inserted };
     },
     onSuccess: () => {
@@ -360,31 +400,45 @@ export function useProjectInstallments() {
 }
 
 /**
- * Recalcula total_amount da fatura somando as despesas CONFIRMADAS.
- * Útil após mudar status de várias despesas.
+ * Recalcula total_amount da fatura.
+ *
+ * Regra: soma TODAS as despesas exceto as estornadas (refunded).
+ * Ou seja: pending + confirmed.
+ *
+ * Isso reflete o valor REAL que aparece na fatura do banco —
+ * independente de você já ter "confirmado" cada item individualmente.
  */
+export async function recalculateBillTotal(billId: string): Promise<number> {
+  const { data: expenses, error: e1 } = await supabase
+    .from('card_expenses')
+    .select('amount, status')
+    .eq('bill_id', billId);
+  if (e1) throw e1;
+
+  const total = (expenses ?? [])
+    .filter(e => e.status !== 'refunded')   // pending + confirmed (exclui apenas refunded)
+    .reduce((sum, e) => sum + Number(e.amount), 0);
+
+  const { error: e2 } = await supabase
+    .from('card_bills')
+    .update({ total_amount: total })
+    .eq('id', billId);
+  if (e2) throw e2;
+
+  return total;
+}
+
+/** Recalcula múltiplas faturas de uma vez (útil após import com várias parcelas) */
+export async function recalculateManyBills(billIds: string[]): Promise<void> {
+  const uniq = [...new Set(billIds)].filter(Boolean);
+  await Promise.all(uniq.map(id => recalculateBillTotal(id)));
+}
+
+/** Hook wrapper (mantido para compatibilidade) */
 export function useRecalculateBillTotal() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (billId: string) => {
-      const { data: expenses, error: e1 } = await supabase
-        .from('card_expenses')
-        .select('amount, status')
-        .eq('bill_id', billId);
-      if (e1) throw e1;
-
-      const total = (expenses ?? [])
-        .filter(e => e.status === 'confirmed')
-        .reduce((sum, e) => sum + Number(e.amount), 0);
-
-      const { error: e2 } = await supabase
-        .from('card_bills')
-        .update({ total_amount: total })
-        .eq('id', billId);
-      if (e2) throw e2;
-
-      return total;
-    },
+    mutationFn: (billId: string) => recalculateBillTotal(billId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['card_bills'] });
     },
