@@ -123,39 +123,42 @@ export function CardImportModal({ open, onClose, card }: Props) {
     }
   }, [card.name]);
 
-  // Quando billMonth muda, recalcula duplicates e matches
+  // Quando billMonth muda OU rows são carregados, recalcula duplicates e matches
   useEffect(() => {
     if (rows.length === 0 || !billMonth) return;
+
     setRows(prev => prev.map(r => {
-      // Duplicate: já existe nesta MESMA fatura (mesmo card, mesmo bill, mesma desc, mesmo amount, mesma data)
-      const isDuplicate = existingExpenses.some(e =>
-        e.bill_id != null &&
-        // Comparação: ele tem que estar na fatura do mês escolhido
-        existingExpenses.find(b => b.id === e.id) &&
+      // 1) MATCH (prioritário): existe esta exata parcela já no DB?
+      //    Critério: mesma installment + total + amount próximo + baseDescription bate
+      let matchedExpenseId: string | undefined;
+      if (r.parcela) {
+        const base = r.parcela.baseDescription.toLowerCase();
+        const m = existingExpenses.find(e => {
+          if (e.installment !== r.parcela!.current) return false;
+          if (e.total_installments !== r.parcela!.total) return false;
+          if (Math.abs(Number(e.amount) - r.amount) > 0.5) return false;
+          // Bate descrição: ou o e.description contém a base, ou inversamente
+          // (cobre projeções que usam "(1/12)" já no nome)
+          const eDesc = e.description.toLowerCase();
+          const eDescBase = eDesc.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim();
+          return eDesc.includes(base) || base.includes(eDescBase);
+        });
+        if (m) matchedExpenseId = m.id;
+      }
+
+      // 2) DUPLICATE: mesma compra exata já existe no DB para este cartão
+      //    Critério: descrição (case insensitive), valor, data
+      //    Só marca como dup se NÃO foi marcado como match (match tem prioridade)
+      const isDuplicate = !matchedExpenseId && existingExpenses.some(e =>
         e.description.trim().toLowerCase() === r.description.trim().toLowerCase() &&
         Math.abs(Number(e.amount) - r.amount) < 0.01 &&
         e.purchase_date === r.date,
       );
 
-      // Match: existe uma PROJEÇÃO desta parcela em qualquer fatura?
-      let matchedExpenseId: string | undefined;
-      if (r.parcela) {
-        const m = existingExpenses.find(e =>
-          e.installment === r.parcela!.current &&
-          e.total_installments === r.parcela!.total &&
-          Math.abs(Number(e.amount) - r.amount) < 0.5 &&    // tolerância de centavos
-          (
-            // mesma baseDescription (normalizada)
-            e.description.toLowerCase().includes(r.parcela!.baseDescription.toLowerCase()) ||
-            r.description.toLowerCase().includes(e.description.toLowerCase().replace(/\s*\(\d+\/\d+\)\s*$/, ''))
-          )
-        );
-        if (m) matchedExpenseId = m.id;
-      }
-
       return { ...r, isDuplicate, matchedExpenseId };
     }));
-  }, [billMonth, existingExpenses, rows.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billMonth, existingExpenses.length, rows.length]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
