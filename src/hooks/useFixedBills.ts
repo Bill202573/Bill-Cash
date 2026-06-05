@@ -24,15 +24,26 @@ export interface FixedBill {
 export interface FixedBillPayment {
   id: string;
   bill_id: string;
-  year_month: string;      // 'YYYY-MM'
-  paid_amount: number;
-  paid_date: string;       // 'YYYY-MM-DD'
+  year_month: string;            // 'YYYY-MM'
+  /** Valor cobrado neste mês específico (pode variar mês a mês) */
+  expected_amount?: number | null;
+  /** Data real de vencimento neste mês (pode variar mês a mês) */
+  due_date?: string | null;      // YYYY-MM-DD
+  /** Valor pago. NULL se ainda não pago */
+  paid_amount: number | null;
+  /** Data do pagamento. NULL se ainda não pago */
+  paid_date: string | null;      // YYYY-MM-DD
   transaction_id: string | null;
   notes: string | null;
   created_at?: string;
 }
 
 export type BillCellStatus = 'paid' | 'overdue' | 'pending' | 'future' | 'na';
+
+/** Verifica se um registro representa um pagamento (paid_amount preenchido) */
+export function isPaymentDone(p: FixedBillPayment | undefined): boolean {
+  return !!p && p.paid_amount != null && p.paid_amount > 0;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -51,8 +62,17 @@ export function getBillCellStatus(
   today: Date,
 ): BillCellStatus {
   if (!billAppliesToMonth(bill, yearMonth)) return 'na';
-  if (payment) return 'paid';
 
+  // Se já foi pago, retorna paid (independente do due_date)
+  if (isPaymentDone(payment)) return 'paid';
+
+  // Se há um registro em aberto (sem pagamento), o status é baseado no due_date dele
+  if (payment && payment.due_date) {
+    const due = new Date(payment.due_date + 'T12:00:00');
+    return due > today ? 'pending' : 'overdue';
+  }
+
+  // Sem registro: usa lógica baseada no template (fallback)
   const [y, mo] = yearMonth.split('-').map(Number);
   const todayY  = today.getFullYear();
   const todayM  = today.getMonth() + 1; // 1-based
@@ -145,6 +165,57 @@ export function useMarkBillPaid() {
       const { data, error } = await supabase
         .from('fixed_bill_payments')
         .upsert([payment], { onConflict: 'bill_id,year_month' })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as FixedBillPayment;
+    },
+    onSuccess: (_, vars) => {
+      const year = parseInt(vars.year_month.slice(0, 4), 10);
+      qc.invalidateQueries({ queryKey: ['fixed_bill_payments', year] });
+    },
+  });
+}
+
+/**
+ * Salva uma instância mensal de uma conta fixa SEM marcar como paga.
+ * Útil quando você quer cadastrar:
+ *   - Valor cobrado este mês
+ *   - Data real de vencimento deste mês
+ * E só DEPOIS registrar o pagamento (ou deixar em aberto para o Dashboard).
+ */
+export function useSaveBillEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (entry: {
+      bill_id: string;
+      year_month: string;
+      expected_amount: number | null;
+      due_date: string | null;
+      notes?: string | null;
+    }) => {
+      // Não sobrescreve paid_amount/paid_date se já existirem (preserva pagamento)
+      const { data: existing } = await supabase
+        .from('fixed_bill_payments')
+        .select('*')
+        .eq('bill_id', entry.bill_id)
+        .eq('year_month', entry.year_month)
+        .maybeSingle();
+
+      const payload = {
+        bill_id:         entry.bill_id,
+        year_month:      entry.year_month,
+        expected_amount: entry.expected_amount,
+        due_date:        entry.due_date,
+        paid_amount:     existing?.paid_amount ?? null,
+        paid_date:       existing?.paid_date   ?? null,
+        transaction_id:  existing?.transaction_id ?? null,
+        notes:           entry.notes ?? existing?.notes ?? null,
+      };
+
+      const { data, error } = await supabase
+        .from('fixed_bill_payments')
+        .upsert([payload], { onConflict: 'bill_id,year_month' })
         .select()
         .single();
       if (error) throw error;

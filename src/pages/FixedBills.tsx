@@ -11,6 +11,7 @@ import { FixedBillForm } from '@/components/FixedBillForm';
 import {
   useFixedBills, useFixedBillPayments,
   useMarkBillPaid, useMarkBillUnpaid, useDeleteFixedBill,
+  useSaveBillEntry,
   billAppliesToMonth, getBillCellStatus,
   type FixedBill, type FixedBillPayment, type BillCellStatus,
 } from '@/hooks/useFixedBills';
@@ -45,15 +46,22 @@ function CellBadge({
   payment?: FixedBillPayment;
   onClick?: () => void;
 }) {
-  if (status === 'na')     return <span className="text-muted-foreground/20 text-xs select-none">—</span>;
-  if (status === 'future') return <span className="text-muted-foreground/30 text-base select-none">·</span>;
+  if (status === 'na') return <span className="text-muted-foreground/20 text-xs select-none">—</span>;
+  if (status === 'future') {
+    return (
+      <button onClick={onClick} title="Cadastrar conta deste mês"
+        className="flex items-center justify-center w-7 h-7 rounded-full hover:bg-secondary/40 text-muted-foreground/40 hover:text-muted-foreground transition-colors">
+        <span className="text-base">·</span>
+      </button>
+    );
+  }
 
-  if (status === 'paid') {
-    const dateStr = new Date(payment!.paid_date + 'T12:00:00').toLocaleDateString('pt-BR');
+  if (status === 'paid' && payment?.paid_date && payment?.paid_amount != null) {
+    const dateStr = new Date(payment.paid_date + 'T12:00:00').toLocaleDateString('pt-BR');
     return (
       <button
         onClick={onClick}
-        title={`Pago: ${fmt(payment!.paid_amount)} em ${dateStr}`}
+        title={`Pago: ${fmt(payment.paid_amount)} em ${dateStr}`}
         className="flex items-center justify-center w-7 h-7 rounded-full bg-income/15 hover:bg-income/25 transition-colors"
       >
         <Check className="h-3.5 w-3.5 text-income" />
@@ -61,15 +69,21 @@ function CellBadge({
     );
   }
   if (status === 'overdue') {
+    const dueStr = payment?.due_date
+      ? ` (venceu ${new Date(payment.due_date + 'T12:00:00').toLocaleDateString('pt-BR')})`
+      : '';
     return (
-      <button onClick={onClick} title="Em atraso — clique para registrar pagamento"
+      <button onClick={onClick} title={`Em atraso${dueStr}`}
         className="flex items-center justify-center w-7 h-7 rounded-full bg-expense/15 hover:bg-expense/25 transition-colors animate-pulse">
         <AlertTriangle className="h-3.5 w-3.5 text-expense" />
       </button>
     );
   }
+  const dueStr = payment?.due_date
+    ? ` (vence ${new Date(payment.due_date + 'T12:00:00').toLocaleDateString('pt-BR')})`
+    : '';
   return (
-    <button onClick={onClick} title="Pendente — clique para registrar pagamento"
+    <button onClick={onClick} title={`A vencer${dueStr}`}
       className="flex items-center justify-center w-7 h-7 rounded-full bg-warning/15 hover:bg-warning/25 transition-colors">
       <Clock className="h-3.5 w-3.5 text-warning" />
     </button>
@@ -88,38 +102,71 @@ interface ModalState {
 function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }) {
   const { bill, yearMonth: initialYearMonth, status, payment } = state;
 
-  // Controla se a seção de registro de pagamento está expandida
-  const [showPayForm, setShowPayForm] = useState(status === 'paid');
-
   // Competência que o usuário escolhe para registrar — pode ser diferente de initialYearMonth!
   const [yearMonth, setYearMonth] = useState(initialYearMonth);
 
+  // === Dados da conta (cadastro/edição em aberto) ===
+  const [expectedAmount, setExpectedAmount] = useState(
+    payment?.expected_amount?.toString() ?? bill.expected_amount?.toString() ?? '',
+  );
+  // Default: dia do template + offset
+  const defaultDueDate = useMemo(() => {
+    if (payment?.due_date) return payment.due_date;
+    const [y, mo] = initialYearMonth.split('-').map(Number);
+    const offset  = bill.due_month_offset ?? 0;
+    const due     = new Date(y, mo - 1 + offset, bill.due_day || 10);
+    return due.toISOString().slice(0, 10);
+  }, [payment?.due_date, initialYearMonth, bill]);
+  const [dueDate, setDueDate] = useState(defaultDueDate);
+
+  // === Dados do pagamento (só se quiser marcar como pago) ===
+  const [showPayForm, setShowPayForm] = useState(status === 'paid');
   const [paidAmount, setPaidAmount] = useState(
-    payment?.paid_amount?.toString() ?? bill.expected_amount?.toString() ?? '',
+    payment?.paid_amount?.toString() ?? '',
   );
   const [paidDate, setPaidDate] = useState(
     payment?.paid_date ?? new Date().toISOString().slice(0, 10),
   );
 
+  const saveEntry  = useSaveBillEntry();
   const markPaid   = useMarkBillPaid();
   const markUnpaid = useMarkBillUnpaid();
 
   const competencyLabel = new Date(yearMonth + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
-  const handlePay = async (txId?: string, txAmount?: number, txDate?: string) => {
-    const amount = txAmount != null ? txAmount.toString() : paidAmount;
-    const date   = txDate ?? paidDate;
-    if (!amount) { toast.error('Informe o valor pago'); return; }
+  /** Salva o cadastro da conta SEM pagamento (apenas valor + vencimento) */
+  const handleSaveEntry = async () => {
+    if (!expectedAmount) { toast.error('Informe o valor da conta'); return; }
+    if (!dueDate)        { toast.error('Informe a data de vencimento'); return; }
+    try {
+      await saveEntry.mutateAsync({
+        bill_id:         bill.id,
+        year_month:      yearMonth,
+        expected_amount: parseFloat(expectedAmount),
+        due_date:        dueDate,
+      });
+      toast.success('Conta salva!');
+      onClose();
+    } catch {
+      toast.error('Erro ao salvar conta');
+    }
+  };
+
+  /** Marca como pago — preserva expected_amount e due_date se já cadastrados */
+  const handlePay = async () => {
+    if (!paidAmount) { toast.error('Informe o valor pago'); return; }
     try {
       await markPaid.mutateAsync({
-        bill_id:        bill.id,
-        year_month:     yearMonth,   // sempre grava na COMPETÊNCIA
-        paid_amount:    parseFloat(amount),
-        paid_date:      date,
-        transaction_id: txId ?? null,
-        notes:          null,
+        bill_id:         bill.id,
+        year_month:      yearMonth,
+        expected_amount: expectedAmount ? parseFloat(expectedAmount) : null,
+        due_date:        dueDate || null,
+        paid_amount:     parseFloat(paidAmount),
+        paid_date:       paidDate,
+        transaction_id:  null,
+        notes:           null,
       });
-      toast.success(txId ? 'Conciliação confirmada!' : 'Pagamento registrado!');
+      toast.success('Pagamento registrado!');
       onClose();
     } catch {
       toast.error('Erro ao registrar pagamento');
@@ -135,9 +182,11 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
     } catch { toast.error('Erro'); }
   };
 
+  const isPaid = status === 'paid';
+
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarCheck className="h-5 w-5 text-primary" />
@@ -148,80 +197,102 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
           </DialogTitle>
         </DialogHeader>
 
-        {/* Competência + Vencimento */}
-        {(bill.competence_month || bill.due_date) && (
-          <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-xs space-y-1">
-            {bill.competence_month && (
-              <p>
-                <span className="text-muted-foreground">Competência:</span>
-                <span className="ml-2 font-medium capitalize">
-                  {new Date(bill.competence_month + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-                </span>
-              </p>
-            )}
-            {bill.due_date && (
-              <p>
-                <span className="text-muted-foreground">Vencimento real:</span>
-                <span className="ml-2 font-medium">
-                  {new Date(bill.due_date + 'T12:00:00').toLocaleDateString('pt-BR')}
-                </span>
-              </p>
-            )}
-          </div>
-        )}
-
         <div className="space-y-4">
-          {/* Status */}
+          {/* Status atual */}
           <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
             status === 'paid'    ? 'bg-income/10  text-income'  :
             status === 'overdue' ? 'bg-expense/10 text-expense' :
                                    'bg-warning/10 text-warning'
           }`}>
-            {status === 'paid'    && <><Check          className="h-4 w-4" /> Pago em {new Date(payment!.paid_date + 'T12:00:00').toLocaleDateString('pt-BR')} · {fmt(payment!.paid_amount)}</>}
-            {status === 'overdue' && <><AlertTriangle  className="h-4 w-4" /> Em atraso{bill.expected_amount ? ` — esperado ${fmt(bill.expected_amount)}` : ''}</>}
-            {status === 'pending' && <><Clock          className="h-4 w-4" /> Pendente · vence dia {bill.due_day}{bill.expected_amount ? ` · ${fmt(bill.expected_amount)}` : ''}</>}
+            {isPaid && (
+              <><Check className="h-4 w-4" /> Pago em {new Date(payment!.paid_date! + 'T12:00:00').toLocaleDateString('pt-BR')} · {fmt(payment!.paid_amount!)}</>
+            )}
+            {status === 'overdue' && (
+              <><AlertTriangle className="h-4 w-4" /> Em atraso{payment?.due_date ? ` — venceu em ${new Date(payment.due_date + 'T12:00:00').toLocaleDateString('pt-BR')}` : ''}</>
+            )}
+            {status === 'pending' && (
+              <><Clock className="h-4 w-4" /> A vencer{payment?.due_date ? ` em ${new Date(payment.due_date + 'T12:00:00').toLocaleDateString('pt-BR')}` : ''}</>
+            )}
           </div>
 
-          {/* Desfazer pagamento */}
-          {status === 'paid' && (
+          {/* === Bloco 1: Dados da conta === */}
+          <div className="bg-secondary/30 border border-border/30 rounded-lg p-3 space-y-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              📄 Dados da conta
+            </p>
+
+            <div>
+              <Label className="text-xs">Competência</Label>
+              <select
+                value={yearMonth}
+                onChange={e => setYearMonth(e.target.value)}
+                className="w-full h-9 px-2 py-1.5 text-sm rounded-md border border-input bg-background mt-1"
+                disabled={isPaid}
+              >
+                {MONTH_RANGE.map(m => (
+                  <option key={m} value={m}>
+                    {new Date(m + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Mês a que a conta se refere
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Valor da conta (R$)</Label>
+                <Input type="number" step="0.01" min="0"
+                  value={expectedAmount}
+                  onChange={e => setExpectedAmount(e.target.value)}
+                  placeholder="0,00"
+                  className="mt-1 h-9"
+                  disabled={isPaid}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Data de vencimento</Label>
+                <Input type="date"
+                  value={dueDate}
+                  onChange={e => setDueDate(e.target.value)}
+                  className="mt-1 h-9"
+                  disabled={isPaid}
+                />
+              </div>
+            </div>
+
+            {!isPaid && (
+              <Button
+                variant="outline"
+                className="w-full h-9 border-primary/30 text-primary hover:bg-primary/10"
+                onClick={handleSaveEntry}
+                disabled={saveEntry.isPending || !expectedAmount || !dueDate}>
+                💾 Salvar conta (sem marcar como pago)
+              </Button>
+            )}
+          </div>
+
+          {/* === Bloco 2: Pagamento === */}
+          {isPaid ? (
             <Button variant="outline" className="w-full text-expense border-expense/30 hover:bg-expense/10"
               onClick={handleUnpay} disabled={markUnpaid.isPending}>
               <X className="h-4 w-4 mr-2" /> Desfazer pagamento
             </Button>
-          )}
-
-          {/* Registrar pagamento (colapsável) */}
-          {status !== 'paid' && (
+          ) : (
             <div className="space-y-3">
               <Button
                 variant="outline"
-                className="w-full justify-between"
+                className="w-full justify-center"
                 onClick={() => setShowPayForm(!showPayForm)}>
-                <span className="flex items-center gap-2">
-                  {showPayForm ? '▼' : '▶'} Registrar pagamento
-                </span>
+                {showPayForm ? '▼' : '▶'} {showPayForm ? 'Esconder' : 'Marcar como pago'}
               </Button>
 
               {showPayForm && (
-                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-3 animate-in fade-in">
-                  <div>
-                    <Label className="text-xs">Competência desta conta</Label>
-                    <select
-                      value={yearMonth}
-                      onChange={e => setYearMonth(e.target.value)}
-                      className="w-full h-9 px-2 py-1.5 text-sm rounded-md border border-input bg-background mt-1"
-                    >
-                      {MONTH_RANGE.map(m => (
-                        <option key={m} value={m}>
-                          {new Date(m + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Qual mês esta conta se refere
-                    </p>
-                  </div>
-
+                <div className="bg-income/5 border border-income/20 rounded-lg p-3 space-y-3 animate-in fade-in">
+                  <p className="text-xs font-medium text-income uppercase tracking-wide">
+                    ✓ Registrar pagamento
+                  </p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs">Valor pago (R$)</Label>
@@ -242,9 +313,9 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
                     </div>
                   </div>
 
-                  <Button className="w-full h-9" onClick={() => handlePay()}
+                  <Button className="w-full h-9" onClick={handlePay}
                     disabled={markPaid.isPending || !paidAmount}>
-                    <Check className="h-4 w-4 mr-2" /> Marcar como pago
+                    <Check className="h-4 w-4 mr-2" /> Confirmar pagamento
                   </Button>
                 </div>
               )}
@@ -298,7 +369,8 @@ export default function FixedBills() {
   const openModal = (bill: FixedBill, yearMonth: string) => {
     const payment = paymentMap[`${bill.id}_${yearMonth}`];
     const status  = getBillCellStatus(bill, payment, yearMonth, today);
-    if (status === 'na' || status === 'future') return;
+    if (status === 'na') return;
+    // Agora abrimos para meses futuros também — usuário pode cadastrar conta antecipadamente
     setModal({ bill, yearMonth, status, payment });
   };
 
@@ -411,7 +483,7 @@ export default function FixedBills() {
         </div>
         <div className="glass-card rounded-lg p-4 text-center">
           <p className="text-2xl font-display font-bold text-warning">{stats.pending}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Pendentes</p>
+          <p className="text-xs text-muted-foreground mt-0.5">A vencer</p>
         </div>
       </div>
 
@@ -433,11 +505,11 @@ export default function FixedBills() {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 mt-4 px-1 text-xs text-muted-foreground">
+      <div className="flex items-center gap-4 mt-4 px-1 text-xs text-muted-foreground flex-wrap">
         <span className="flex items-center gap-1.5"><Check className="h-3 w-3 text-income" /> Pago</span>
         <span className="flex items-center gap-1.5"><AlertTriangle className="h-3 w-3 text-expense" /> Em atraso</span>
-        <span className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-warning" /> Pendente</span>
-        <span className="flex items-center gap-1.5 text-muted-foreground/40">· Futuro</span>
+        <span className="flex items-center gap-1.5"><Clock className="h-3 w-3 text-warning" /> A vencer</span>
+        <span className="flex items-center gap-1.5 text-muted-foreground/40">· Futuro (cadastrar)</span>
         <span className="flex items-center gap-1.5 text-muted-foreground/30">— N/A</span>
       </div>
 
