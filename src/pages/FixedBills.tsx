@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
-  Check, X, AlertTriangle, Clock, ChevronLeft, ChevronRight,
-  Plus, Pencil, Trash2, Zap, CalendarCheck, Search,
+  Check, X, AlertTriangle, Clock,
+  Plus, Pencil, Trash2, CalendarCheck, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,10 +14,8 @@ import {
   billAppliesToMonth, getBillCellStatus,
   type FixedBill, type FixedBillPayment, type BillCellStatus,
 } from '@/hooks/useFixedBills';
-import { useTransactions } from '@/hooks/useTransactions';
 import { fmt } from '@/lib/financial';
 import { toast } from 'sonner';
-import type { Transaction } from '@/lib/supabase';
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -36,40 +34,7 @@ function buildMonthRange(): string[] {
 }
 const MONTH_RANGE = buildMonthRange();
 
-// ─── reconciliation helper ────────────────────────────────────────────────────
-
-/** Busca transações candidatas em um mês específico (pode ser diferente da competência) */
-function findCandidates(
-  bill: FixedBill,
-  searchMonth: string,
-  transactions: Transaction[],
-): Transaction[] {
-  return transactions.filter(tx => {
-    if (tx.type !== 'expense') return false;
-    if (!tx.date.startsWith(searchMonth)) return false;
-    const desc     = tx.description.toLowerCase();
-    const kwMatch  = bill.keywords?.some(k => desc.includes(k.toLowerCase())) ?? false;
-    const amtMatch =
-      bill.expected_amount != null &&
-      Math.abs(tx.amount - bill.expected_amount) / bill.expected_amount < 0.12;
-    return kwMatch || amtMatch;
-  });
-}
-
-/** Para o banner de sugestões: busca no mês da competência E no mês seguinte */
-function findCandidatesExtended(
-  bill: FixedBill,
-  yearMonth: string,
-  transactions: Transaction[],
-): Transaction[] {
-  const [y, m] = yearMonth.split('-').map(Number);
-  const next   = new Date(y, m, 1); // mês seguinte
-  const nextYM = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
-  return [
-    ...findCandidates(bill, yearMonth, transactions),
-    ...findCandidates(bill, nextYM,    transactions),
-  ].filter((tx, i, arr) => arr.findIndex(t => t.id === tx.id) === i); // dedup
-}
+// ─── (conciliação automática será implementada em versão futura) ────────────────
 
 // ─── cell badge ───────────────────────────────────────────────────────────────
 
@@ -126,9 +91,6 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
   // Competência que o usuário escolhe para registrar — pode ser diferente de initialYearMonth!
   const [yearMonth, setYearMonth] = useState(initialYearMonth);
 
-  // Mês onde BUSCAR a transação — pode ser diferente da competência!
-  const [searchMonth, setSearchMonth] = useState(initialYearMonth);
-
   const [paidAmount, setPaidAmount] = useState(
     payment?.paid_amount?.toString() ?? bill.expected_amount?.toString() ?? '',
   );
@@ -136,21 +98,10 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
     payment?.paid_date ?? new Date().toISOString().slice(0, 10),
   );
 
-  const { data: transactions = [] } = useTransactions();
   const markPaid   = useMarkBillPaid();
   const markUnpaid = useMarkBillUnpaid();
 
-  // Candidatos calculados dinamicamente a partir do mês de busca
-  const liveCandidates = useMemo(
-    () => findCandidates(bill, searchMonth, transactions),
-    [bill, searchMonth, transactions],
-  );
-
-  const competencyLabel = new Date(yearMonth  + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  const searchLabel     = new Date(searchMonth + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-
-  const searchIdx = MONTH_RANGE.indexOf(searchMonth);
-  const isDifferentMonth = searchMonth !== yearMonth;
+  const competencyLabel = new Date(yearMonth + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
   const handlePay = async (txId?: string, txAmount?: number, txDate?: string) => {
     const amount = txAmount != null ? txAmount.toString() : paidAmount;
@@ -236,145 +187,56 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
             </Button>
           )}
 
-          {/* Registrar / conciliar */}
+          {/* Registrar pagamento */}
           {status !== 'paid' && (
-            <>
-              {/* ── Seletor de mês de busca ── */}
-              <div className="rounded-lg border border-border/40 p-3 bg-secondary/20">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Search className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Buscar transação em:
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => searchIdx > 0 && setSearchMonth(MONTH_RANGE[searchIdx - 1])}
-                    disabled={searchIdx <= 0}
-                    className="p-1 rounded hover:bg-secondary disabled:opacity-25"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                  <span className={`flex-1 text-center text-sm font-semibold capitalize ${
-                    isDifferentMonth ? 'text-primary' : 'text-foreground'
-                  }`}>
-                    {searchLabel}
-                  </span>
-                  <button
-                    onClick={() => searchIdx < MONTH_RANGE.length - 1 && setSearchMonth(MONTH_RANGE[searchIdx + 1])}
-                    disabled={searchIdx >= MONTH_RANGE.length - 1}
-                    className="p-1 rounded hover:bg-secondary disabled:opacity-25"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                  {isDifferentMonth && (
-                    <button
-                      onClick={() => setSearchMonth(yearMonth)}
-                      className="text-xs text-muted-foreground hover:text-foreground underline"
-                    >
-                      resetar
-                    </button>
-                  )}
-                </div>
-                {isDifferentMonth && (
-                  <p className="text-xs text-primary/80 mt-1.5 text-center">
-                    Competência: <span className="capitalize font-medium">{competencyLabel}</span> · Pagamento buscado em: <span className="capitalize font-medium">{searchLabel}</span>
-                  </p>
-                )}
-              </div>
+            <div className="space-y-3">
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-3">
+                <p className="text-xs font-medium text-primary">📝 Registrar pagamento</p>
 
-              {/* Candidatos do mês de busca */}
-              {liveCandidates.length > 0 ? (
                 <div>
-                  <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-primary" />
-                    {liveCandidates.length} transação(ões) encontrada(s) em{' '}
-                    <span className="capitalize">{searchLabel}</span>
-                  </p>
-                  <div className="space-y-2">
-                    {liveCandidates.map(tx => (
-                      <div key={tx.id}
-                        className="flex items-center justify-between p-3 rounded-lg border border-border/40 bg-secondary/30">
-                        <div className="min-w-0 mr-3">
-                          <p className="text-xs font-medium truncate">
-                            {tx.description.split(' - ')[0]}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')} · {fmt(tx.amount)}
-                          </p>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => handlePay(tx.id, tx.amount, tx.date)}
-                          disabled={markPaid.isPending}
-                          className="flex-shrink-0 text-xs h-7"
-                        >
-                          Confirmar
-                        </Button>
-                      </div>
+                  <Label className="text-xs">Competência desta conta</Label>
+                  <select
+                    value={yearMonth}
+                    onChange={e => setYearMonth(e.target.value)}
+                    className="w-full h-9 px-2 py-1.5 text-sm rounded-md border border-input bg-background mt-1"
+                  >
+                    {MONTH_RANGE.map(m => (
+                      <option key={m} value={m}>
+                        {new Date(m + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                      </option>
                     ))}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground text-center py-2">
-                  Nenhuma transação encontrada em <span className="capitalize">{searchLabel}</span>.
-                  Use as setas acima para mudar o mês de busca.
-                </p>
-              )}
-
-              {/* Registrar manualmente */}
-              <div className="space-y-3 border-t border-border/30 pt-3">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Ou registrar manualmente
-                </p>
-                <div className="bg-warning/5 border border-warning/20 rounded-lg p-2.5">
-                  <p className="text-xs text-warning mb-2">
-                    💡 Você pode registrar pagamentos de competências anteriores (atrasados) ou futuras
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Qual mês esta conta se refere
                   </p>
-                  <div className="space-y-2.5">
-                    <div>
-                      <Label className="text-xs">Competência desta conta</Label>
-                      <select
-                        value={yearMonth}
-                        onChange={e => setYearMonth(e.target.value)}
-                        className="w-full h-8 px-2 py-1 text-xs rounded-md border border-input bg-background mt-1"
-                      >
-                        {MONTH_RANGE.map(m => (
-                          <option key={m} value={m}>
-                            {new Date(m + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Qual mês esta conta se refere
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-xs">Valor pago (R$)</Label>
-                        <Input type="number" step="0.01" min="0"
-                          value={paidAmount}
-                          onChange={e => setPaidAmount(e.target.value)}
-                          className="mt-1 h-8"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Data do pagamento</Label>
-                        <Input type="date"
-                          value={paidDate}
-                          onChange={e => setPaidDate(e.target.value)}
-                          className="mt-1 h-8"
-                        />
-                      </div>
-                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Valor pago (R$)</Label>
+                    <Input type="number" step="0.01" min="0"
+                      value={paidAmount}
+                      onChange={e => setPaidAmount(e.target.value)}
+                      placeholder="0,00"
+                      className="mt-1 h-9"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Data do pagamento</Label>
+                    <Input type="date"
+                      value={paidDate}
+                      onChange={e => setPaidDate(e.target.value)}
+                      className="mt-1 h-9"
+                    />
                   </div>
                 </div>
-                <Button className="w-full" onClick={() => handlePay()}
-                  disabled={markPaid.isPending || !paidAmount}>
-                  <Check className="h-4 w-4 mr-2" /> Marcar como pago
-                </Button>
               </div>
-            </>
+
+              <Button className="w-full h-10" onClick={() => handlePay()}
+                disabled={markPaid.isPending || !paidAmount}>
+                <Check className="h-4 w-4 mr-2" /> Marcar como pago
+              </Button>
+            </div>
           )}
         </div>
       </DialogContent>
@@ -391,9 +253,8 @@ export default function FixedBills() {
   const [editing,  setEditing]  = useState<FixedBill | null>(null);
   const [modal,    setModal]    = useState<ModalState | null>(null);
 
-  const { data: bills        = [] } = useFixedBills();
-  const { data: payments     = [] } = useFixedBillPayments(year);
-  const { data: transactions = [] } = useTransactions();
+  const { data: bills    = [] } = useFixedBills();
+  const { data: payments = [] } = useFixedBillPayments(year);
   const deleteBill = useDeleteFixedBill();
 
   const yearMonths = useMemo(
@@ -406,24 +267,6 @@ export default function FixedBills() {
     payments.forEach(p => { m[`${p.bill_id}_${p.year_month}`] = p; });
     return m;
   }, [payments]);
-
-  // Sugestões automáticas: busca no mês da competência E no mês seguinte
-  const suggestions = useMemo(() => {
-    const result: { bill: FixedBill; yearMonth: string; candidates: Transaction[] }[] = [];
-    const curMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-
-    bills.forEach(bill => {
-      yearMonths
-        .filter(ym => ym <= curMonth)
-        .forEach(ym => {
-          if (paymentMap[`${bill.id}_${ym}`]) return;
-          if (!billAppliesToMonth(bill, ym)) return;
-          const cands = findCandidatesExtended(bill, ym, transactions);
-          if (cands.length > 0) result.push({ bill, yearMonth: ym, candidates: cands });
-        });
-    });
-    return result;
-  }, [bills, yearMonths, paymentMap, transactions]);
 
   const stats = useMemo(() => {
     let overdue = 0; let paid = 0; let pending = 0;
