@@ -88,6 +88,9 @@ interface ModalState {
 function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }) {
   const { bill, yearMonth: initialYearMonth, status, payment } = state;
 
+  // Controla se a seção de registro de pagamento está expandida
+  const [showPayForm, setShowPayForm] = useState(status === 'paid');
+
   // Competência que o usuário escolhe para registrar — pode ser diferente de initialYearMonth!
   const [yearMonth, setYearMonth] = useState(initialYearMonth);
 
@@ -187,55 +190,64 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
             </Button>
           )}
 
-          {/* Registrar pagamento */}
+          {/* Registrar pagamento (colapsável) */}
           {status !== 'paid' && (
             <div className="space-y-3">
-              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-3">
-                <p className="text-xs font-medium text-primary">📝 Registrar pagamento</p>
-
-                <div>
-                  <Label className="text-xs">Competência desta conta</Label>
-                  <select
-                    value={yearMonth}
-                    onChange={e => setYearMonth(e.target.value)}
-                    className="w-full h-9 px-2 py-1.5 text-sm rounded-md border border-input bg-background mt-1"
-                  >
-                    {MONTH_RANGE.map(m => (
-                      <option key={m} value={m}>
-                        {new Date(m + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Qual mês esta conta se refere
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Valor pago (R$)</Label>
-                    <Input type="number" step="0.01" min="0"
-                      value={paidAmount}
-                      onChange={e => setPaidAmount(e.target.value)}
-                      placeholder="0,00"
-                      className="mt-1 h-9"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Data do pagamento</Label>
-                    <Input type="date"
-                      value={paidDate}
-                      onChange={e => setPaidDate(e.target.value)}
-                      className="mt-1 h-9"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <Button className="w-full h-10" onClick={() => handlePay()}
-                disabled={markPaid.isPending || !paidAmount}>
-                <Check className="h-4 w-4 mr-2" /> Marcar como pago
+              <Button
+                variant="outline"
+                className="w-full justify-between"
+                onClick={() => setShowPayForm(!showPayForm)}>
+                <span className="flex items-center gap-2">
+                  {showPayForm ? '▼' : '▶'} Registrar pagamento
+                </span>
               </Button>
+
+              {showPayForm && (
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-3 animate-in fade-in">
+                  <div>
+                    <Label className="text-xs">Competência desta conta</Label>
+                    <select
+                      value={yearMonth}
+                      onChange={e => setYearMonth(e.target.value)}
+                      className="w-full h-9 px-2 py-1.5 text-sm rounded-md border border-input bg-background mt-1"
+                    >
+                      {MONTH_RANGE.map(m => (
+                        <option key={m} value={m}>
+                          {new Date(m + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Qual mês esta conta se refere
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Valor pago (R$)</Label>
+                      <Input type="number" step="0.01" min="0"
+                        value={paidAmount}
+                        onChange={e => setPaidAmount(e.target.value)}
+                        placeholder="0,00"
+                        className="mt-1 h-9"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Data do pagamento</Label>
+                      <Input type="date"
+                        value={paidDate}
+                        onChange={e => setPaidDate(e.target.value)}
+                        className="mt-1 h-9"
+                      />
+                    </div>
+                  </div>
+
+                  <Button className="w-full h-9" onClick={() => handlePay()}
+                    disabled={markPaid.isPending || !paidAmount}>
+                    <Check className="h-4 w-4 mr-2" /> Marcar como pago
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
