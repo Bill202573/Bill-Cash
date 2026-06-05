@@ -324,22 +324,46 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Ou registrar manualmente
                 </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Valor pago (R$)</Label>
-                    <Input type="number" step="0.01" min="0"
-                      value={paidAmount}
-                      onChange={e => setPaidAmount(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label>Data do pagamento</Label>
-                    <Input type="date"
-                      value={paidDate}
-                      onChange={e => setPaidDate(e.target.value)}
-                      className="mt-1"
-                    />
+                <div className="bg-warning/5 border border-warning/20 rounded-lg p-2.5">
+                  <p className="text-xs text-warning mb-2">
+                    💡 Você pode registrar pagamentos de competências anteriores (atrasados) ou futuras
+                  </p>
+                  <div className="space-y-2.5">
+                    <div>
+                      <Label className="text-xs">Competência desta conta</Label>
+                      <select
+                        value={yearMonth}
+                        onChange={e => setYearMonth(e.target.value)}
+                        className="w-full h-8 px-2 py-1 text-xs rounded-md border border-input bg-background mt-1"
+                      >
+                        {MONTH_RANGE.map(m => (
+                          <option key={m} value={m}>
+                            {new Date(m + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Qual mês esta conta se refere
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">Valor pago (R$)</Label>
+                        <Input type="number" step="0.01" min="0"
+                          value={paidAmount}
+                          onChange={e => setPaidAmount(e.target.value)}
+                          className="mt-1 h-8"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Data do pagamento</Label>
+                        <Input type="date"
+                          value={paidDate}
+                          onChange={e => setPaidDate(e.target.value)}
+                          className="mt-1 h-8"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <Button className="w-full" onClick={() => handlePay()}
