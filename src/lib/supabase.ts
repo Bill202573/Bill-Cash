@@ -81,14 +81,18 @@ export interface CardExpense {
 export type AccountType = 'checking' | 'savings' | 'investment' | 'wallet';
 
 export interface Account {
-  id:          string;
-  name:        string;
-  bank:        string;
-  type:        AccountType;
-  balance:     number;
-  owner:       string;
-  color:       string;
-  created_at?: string;
+  id:                    string;
+  name:                  string;
+  bank:                  string;
+  type:                  AccountType;
+  balance:               number;     // legado — mantido para compat. O saldo "vivo" é calculado.
+  owner:                 string;
+  color:                 string;
+  /** Saldo inicial: ponto de partida para o cálculo dinâmico */
+  initial_balance?:      number;
+  /** Data do saldo inicial. Transações ANTES desta data são ignoradas no cálculo */
+  initial_balance_date?: string;     // YYYY-MM-DD
+  created_at?:           string;
 }
 
 export type DebtType = 'credit_card' | 'personal_loan' | 'financing' | 'overdraft' | 'other';
