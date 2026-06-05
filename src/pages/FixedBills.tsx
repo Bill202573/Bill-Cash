@@ -403,42 +403,6 @@ export default function FixedBills() {
         </div>
       </div>
 
-      {/* Suggestions banner */}
-      {suggestions.length > 0 && (
-        <div className="mb-6 glass-card rounded-xl border border-primary/20 overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-3 bg-primary/10 border-b border-primary/20">
-            <Zap className="h-4 w-4 text-primary" />
-            <p className="text-sm font-semibold text-primary">
-              {suggestions.length} sugestão(ões) de conciliação encontrada(s)
-            </p>
-          </div>
-          <div className="divide-y divide-border/20">
-            {suggestions.map(({ bill, yearMonth: ym, candidates }) => {
-              const ml = new Date(ym + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-              return (
-                <div key={`${bill.id}_${ym}`}
-                  className="flex items-center justify-between px-5 py-3 hover:bg-secondary/30 transition-colors">
-                  <div>
-                    <p className="text-sm font-medium">
-                      {bill.name}
-                      <span className="text-muted-foreground font-normal capitalize"> — {ml}</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {candidates.length} transação(ões) · {candidates.map(t => `${fmt(t.amount)} em ${new Date(t.date+'T12:00:00').toLocaleDateString('pt-BR')}`).join(', ')}
-                    </p>
-                  </div>
-                  <Button size="sm" variant="outline"
-                    className="border-primary/30 text-primary hover:bg-primary/10 flex-shrink-0 ml-3"
-                    onClick={() => openModal(bill, ym)}>
-                    Ver e conciliar
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Monthly grid */}
       <div className="glass-card rounded-xl p-5 mb-4">
         <h3 className="font-display font-semibold mb-4 flex items-center gap-2">
