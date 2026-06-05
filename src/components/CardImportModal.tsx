@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Upload, CheckCircle2, AlertTriangle, Receipt, Layers } from 'lucide-react';
 import { useAddCardExpense, useCardExpenses, useProjectInstallments, recalculateManyBills } from '@/hooks/useCardExpenses';
+import { useCategories } from '@/hooks/useCategories';
 import { parseFile } from '@/lib/importParser';
 import { fmt } from '@/lib/financial';
 import { EXPENSE_CATEGORIES, supabase, type CreditCard } from '@/lib/supabase';
@@ -25,14 +26,14 @@ interface PreviewRow {
   amount:         number;
   date:           string;     // purchase_date
   category:       string;
+  subcategory:    string;     // subcategoria escolhida pelo usuário
   selected:       boolean;
 
   // Parcela detectada (se houver)
   parcela?:       { current: number; total: number; baseDescription: string };
 
-  // Status: duplicada (já existe nesta mesma fatura) ou matched (já existe como projeção)
-  isDuplicate?:   boolean;
-  matchedExpenseId?: string;   // id da despesa já existente (projeção) que deve ser reaproveitada
+  // Se bate com uma projeção já existente, vamos atualizar essa projeção em vez de criar nova
+  matchedExpenseId?: string;
 }
 
 function getMonthOptions(): Array<{ value: string; label: string }> {
@@ -62,11 +63,12 @@ export function CardImportModal({ open, onClose, card }: Props) {
   const [dragging, setDragging] = useState(false);
   const [rows, setRows] = useState<PreviewRow[]>([]);
   const [billMonth, setBillMonth] = useState<string>('');
-  const [projectFutureParcelas, setProjectFutureParcelas] = useState(true);
+  const [projectFutureParcelas, setProjectFutureParcelas] = useState(false);   // OFF por padrão (experimental)
+  const [replaceMode, setReplaceMode] = useState(true);   // ON por padrão: a fatura uploadada É a verdade
   const [importing, setImporting] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
   const [projectedCount, setProjectedCount] = useState(0);
-  const [skippedDupCount, setSkippedDupCount] = useState(0);
+  const [replacedCount, setReplacedCount] = useState(0);
   const [mergedCount, setMergedCount] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -75,8 +77,22 @@ export function CardImportModal({ open, onClose, card }: Props) {
   const projectExp    = useProjectInstallments();
   const monthOptions  = useMemo(() => getMonthOptions(), []);
 
-  // Carrega despesas existentes do MESMO cartão para fazer matching/duplicate-check
+  // Carrega despesas existentes do MESMO cartão para fazer matching com projeções
   const { data: existingExpenses = [] } = useCardExpenses({ cardId: card.id });
+
+  // Categorias e subcategorias do banco (para o dropdown)
+  const { data: dbCats = [] } = useCategories('expense');
+  const rootCats = useMemo(() => dbCats.filter(c => c.parent_id === null), [dbCats]);
+  const allCatNames = useMemo(
+    () => rootCats.length > 0 ? rootCats.map(c => c.name) : [...EXPENSE_CATEGORIES],
+    [rootCats],
+  );
+  const subcatsFor = useCallback((catName: string) => {
+    if (!catName) return [];
+    const parent = rootCats.find(c => c.name === catName);
+    if (!parent) return [];
+    return dbCats.filter(c => c.parent_id === parent.id);
+  }, [rootCats, dbCats]);
 
   useEffect(() => {
     if (rows.length > 0 && !billMonth) {
@@ -105,6 +121,7 @@ export function CardImportModal({ open, onClose, card }: Props) {
             amount:      r.amount,
             date:        r.date,
             category:    r.category || '',
+            subcategory: '',
             selected:    true,
             parcela:     parcela ?? undefined,
           };
@@ -123,22 +140,22 @@ export function CardImportModal({ open, onClose, card }: Props) {
     }
   }, [card.name]);
 
-  // Quando billMonth muda OU rows são carregados, recalcula duplicates e matches
+  // Quando billMonth muda OU rows são carregados, busca matches com PROJEÇÕES existentes
+  // (não fazemos mais detecção de "duplicatas" — a fatura uploadada é a fonte da verdade)
   useEffect(() => {
     if (rows.length === 0 || !billMonth) return;
 
     setRows(prev => prev.map(r => {
-      // 1) MATCH (prioritário): existe esta exata parcela já no DB?
-      //    Critério: mesma installment + total + amount próximo + baseDescription bate
       let matchedExpenseId: string | undefined;
+
+      // Match com projeção: parcela X/Y já projetada anteriormente
       if (r.parcela) {
         const base = r.parcela.baseDescription.toLowerCase();
         const m = existingExpenses.find(e => {
           if (e.installment !== r.parcela!.current) return false;
           if (e.total_installments !== r.parcela!.total) return false;
           if (Math.abs(Number(e.amount) - r.amount) > 0.5) return false;
-          // Bate descrição: ou o e.description contém a base, ou inversamente
-          // (cobre projeções que usam "(1/12)" já no nome)
+          // Match por descrição (substring qualquer direção)
           const eDesc = e.description.toLowerCase();
           const eDescBase = eDesc.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim();
           return eDesc.includes(base) || base.includes(eDescBase);
@@ -146,16 +163,7 @@ export function CardImportModal({ open, onClose, card }: Props) {
         if (m) matchedExpenseId = m.id;
       }
 
-      // 2) DUPLICATE: mesma compra exata já existe no DB para este cartão
-      //    Critério: descrição (case insensitive), valor, data
-      //    Só marca como dup se NÃO foi marcado como match (match tem prioridade)
-      const isDuplicate = !matchedExpenseId && existingExpenses.some(e =>
-        e.description.trim().toLowerCase() === r.description.trim().toLowerCase() &&
-        Math.abs(Number(e.amount) - r.amount) < 0.01 &&
-        e.purchase_date === r.date,
-      );
-
-      return { ...r, isDuplicate, matchedExpenseId };
+      return { ...r, matchedExpenseId };
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [billMonth, existingExpenses.length, rows.length]);
@@ -181,14 +189,18 @@ export function CardImportModal({ open, onClose, card }: Props) {
   };
 
   const updateCategory = (i: number, cat: string) => {
-    setRows(prev => prev.map((r, idx) => idx === i ? { ...r, category: cat } : r));
+    // Ao trocar categoria, limpa subcategoria (que pode ser de outro pai)
+    setRows(prev => prev.map((r, idx) => idx === i ? { ...r, category: cat, subcategory: '' } : r));
+  };
+
+  const updateSubcategory = (i: number, sub: string) => {
+    setRows(prev => prev.map((r, idx) => idx === i ? { ...r, subcategory: sub === '__none__' ? '' : sub } : r));
   };
 
   const handleImport = async () => {
-    const selected = rows.filter(r => r.selected && !r.isDuplicate);
-    const dups = rows.filter(r => r.selected && r.isDuplicate);
+    const selected = rows.filter(r => r.selected);
     if (selected.length === 0) {
-      toast.error('Selecione pelo menos uma despesa não-duplicada');
+      toast.error('Selecione pelo menos uma despesa');
       return;
     }
 
@@ -196,8 +208,41 @@ export function CardImportModal({ open, onClose, card }: Props) {
     let count = 0;
     let projected = 0;
     let merged = 0;
+    let replaced = 0;
     const errs: string[] = [];
     const affectedBillIds = new Set<string>();
+
+    // ─── REPLACE MODE: deleta imports anteriores deste mês ───────────────────
+    // Mantém manuais (origin='manual') e projeções (purchase_group_id presente).
+    // Só apaga importações DIRETAS anteriores deste mesmo mês.
+    if (replaceMode) {
+      try {
+        // Acha a fatura do mês
+        const { data: existingBill } = await supabase
+          .from('card_bills')
+          .select('id')
+          .eq('card_id', card.id)
+          .eq('month_ref', billMonth)
+          .maybeSingle();
+
+        if (existingBill) {
+          // Deleta despesas: origin='import' AND purchase_group_id IS NULL
+          // (preserva manuais e parcelas projetadas)
+          const { count: delCount, error: delErr } = await supabase
+            .from('card_expenses')
+            .delete({ count: 'exact' })
+            .eq('bill_id', existingBill.id)
+            .eq('origin', 'import')
+            .is('purchase_group_id', null);
+          if (delErr) throw delErr;
+          replaced = delCount ?? 0;
+          affectedBillIds.add(existingBill.id);
+        }
+      } catch (e: any) {
+        console.error('[CARD IMPORT REPLACE ERROR]', e);
+        errs.push('Erro ao limpar imports antigos: ' + (e?.message ?? String(e)));
+      }
+    }
 
     for (const row of selected) {
       try {
@@ -243,6 +288,7 @@ export function CardImportModal({ open, onClose, card }: Props) {
               description:   row.description,
               purchase_date: row.date,
               category:      row.category || undefined,
+              subcategory:   row.subcategory || undefined,
               origin:        'import',
               status:        'confirmed',   // ← vem da fatura oficial, está confirmada
             })
@@ -265,6 +311,7 @@ export function CardImportModal({ open, onClose, card }: Props) {
           amount:            row.amount,
           purchaseDate:      row.date,
           category:          row.category || undefined,
+          subcategory:       row.subcategory || undefined,
           totalInstallments: 1,
           origin:            'import',
           status:            'confirmed',
@@ -289,7 +336,7 @@ export function CardImportModal({ open, onClose, card }: Props) {
     setImportedCount(count);
     setProjectedCount(projected);
     setMergedCount(merged);
-    setSkippedDupCount(dups.length);
+    setReplacedCount(replaced);
     setErrors(errs);
     setImporting(false);
     setStep('done');
@@ -302,7 +349,7 @@ export function CardImportModal({ open, onClose, card }: Props) {
     setImportedCount(0);
     setProjectedCount(0);
     setMergedCount(0);
-    setSkippedDupCount(0);
+    setReplacedCount(0);
     setErrors([]);
     onClose();
   };
@@ -310,7 +357,6 @@ export function CardImportModal({ open, onClose, card }: Props) {
   const selectedCount       = rows.filter(r => r.selected).length;
   const totalSelected       = rows.filter(r => r.selected).reduce((s, r) => s + r.amount, 0);
   const parcelaRowsCount    = rows.filter(r => r.parcela).length;
-  const duplicatesCount     = rows.filter(r => r.isDuplicate).length;
   const projectableCount    = rows.filter(r => r.parcela && !r.matchedExpenseId).length;
   const matchingCount       = rows.filter(r => r.matchedExpenseId).length;
 
@@ -337,10 +383,10 @@ export function CardImportModal({ open, onClose, card }: Props) {
                 Apenas <strong>compras (despesas)</strong> são importadas. Pagamentos e estornos não entram aqui.
               </p>
               <p className="text-muted-foreground">
-                Todas vêm como <strong>pendentes</strong> para você revisar.
+                ✓ Despesas chegam como <strong>confirmadas</strong> (vieram da fatura oficial).
               </p>
               <p className="text-muted-foreground">
-                ⚡ <strong>Parcelas detectadas automaticamente</strong> — você decide se quer projetar as futuras.
+                🔄 A fatura uploadada é a <strong>fonte da verdade</strong> — importações anteriores deste mesmo mês serão substituídas.
               </p>
             </div>
 
@@ -388,6 +434,28 @@ export function CardImportModal({ open, onClose, card }: Props) {
                 </Select>
               </div>
 
+              {/* MODO SUBSTITUIR (default ON) */}
+              <div className="border-t border-primary/20 pt-3">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={replaceMode}
+                    onCheckedChange={v => setReplaceMode(Boolean(v))}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <p className="text-xs font-medium flex items-center gap-1">
+                      🔄 Substituir importações anteriores deste mês <span className="text-[10px] text-primary/70">(recomendado)</span>
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Apaga despesas IMPORTADAS anteriores desta fatura para evitar duplicação.
+                      <strong className="text-foreground"> Manuais e projeções são preservadas.</strong>
+                      Se desmarcar, novas linhas serão adicionadas SEM verificar duplicatas.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* PROJETAR PARCELAS (default OFF — experimental) */}
               {parcelaRowsCount > 0 && (
                 <div className="border-t border-primary/20 pt-3">
                   <label className="flex items-start gap-2 cursor-pointer">
@@ -398,30 +466,23 @@ export function CardImportModal({ open, onClose, card }: Props) {
                     />
                     <div className="flex-1">
                       <p className="text-xs font-medium flex items-center gap-1">
-                        <Layers className="h-3 w-3" /> Projetar parcelas futuras
+                        <Layers className="h-3 w-3" /> Projetar parcelas futuras <span className="text-[10px] text-warning">(experimental)</span>
                       </p>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
                         {projectableCount} compra(s) parcelada(s) detectada(s). Marque para criar as parcelas futuras
-                        nas faturas dos próximos meses. Útil para fluxo de caixa.
+                        nas faturas dos próximos meses. <strong>Desabilitado por padrão</strong> — pode causar confusão até a importação dos meses futuros.
                       </p>
                     </div>
                   </label>
                 </div>
               )}
 
-              {/* Status de matching/duplicatas */}
-              {(duplicatesCount > 0 || matchingCount > 0) && (
-                <div className="border-t border-primary/20 pt-3 text-[11px] space-y-1">
-                  {duplicatesCount > 0 && (
-                    <p className="text-warning">
-                      ⚠️ <strong>{duplicatesCount}</strong> despesa(s) marcada(s) como duplicada(s) — ignoradas no import
-                    </p>
-                  )}
-                  {matchingCount > 0 && (
-                    <p className="text-income">
-                      ✓ <strong>{matchingCount}</strong> parcela(s) já existem como projeção — serão atualizadas (sem duplicar)
-                    </p>
-                  )}
+              {/* Status de matching */}
+              {matchingCount > 0 && (
+                <div className="border-t border-primary/20 pt-3 text-[11px]">
+                  <p className="text-income">
+                    ✓ <strong>{matchingCount}</strong> parcela(s) já existem como projeção — serão promovidas a confirmadas
+                  </p>
                 </div>
               )}
             </div>
@@ -443,16 +504,18 @@ export function CardImportModal({ open, onClose, card }: Props) {
                     </th>
                     <th className="p-2 text-left w-24">Data</th>
                     <th className="p-2 text-left">Descrição</th>
-                    <th className="p-2 text-left w-32">Categoria</th>
+                    <th className="p-2 text-left w-28">Categoria</th>
+                    <th className="p-2 text-left w-28">Subcat.</th>
                     <th className="p-2 text-right w-28">Valor</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, i) => (
+                  {rows.map((row, i) => {
+                    const subs = subcatsFor(row.category);
+                    return (
                     <tr
                       key={i}
                       className={`border-b border-border/20 ${
-                        row.isDuplicate ? 'bg-warning/5' :
                         row.matchedExpenseId ? 'bg-income/5' :
                         row.selected ? '' : 'opacity-40'
                       } hover:bg-secondary/30`}
@@ -473,11 +536,6 @@ export function CardImportModal({ open, onClose, card }: Props) {
                             ✓ já projetada
                           </span>
                         )}
-                        {row.isDuplicate && (
-                          <span className="ml-1 text-[10px] bg-warning/15 text-warning px-1.5 py-0.5 rounded font-medium">
-                            ⚠️ duplicada
-                          </span>
-                        )}
                       </td>
                       <td className="p-2">
                         <Select value={row.category} onValueChange={v => updateCategory(i, v)}>
@@ -485,13 +543,29 @@ export function CardImportModal({ open, onClose, card }: Props) {
                             <SelectValue placeholder="—" />
                           </SelectTrigger>
                           <SelectContent>
-                            {EXPENSE_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                            {allCatNames.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </td>
+                      <td className="p-2">
+                        {subs.length > 0 ? (
+                          <Select value={row.subcategory || '__none__'} onValueChange={v => updateSubcategory(i, v)}>
+                            <SelectTrigger className="h-7 text-xs px-2">
+                              <SelectValue placeholder="—" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">— Nenhuma —</SelectItem>
+                              {subs.map(s => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/40 px-2">—</span>
+                        )}
+                      </td>
                       <td className="p-2 text-right font-semibold text-expense">-{fmt(row.amount)}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -514,15 +588,15 @@ export function CardImportModal({ open, onClose, card }: Props) {
                 <div>
                   <p className="text-xl font-display font-bold">Concluído!</p>
                   <ul className="text-sm text-muted-foreground mt-2 space-y-0.5">
-                    <li><strong className="text-foreground">{importedCount}</strong> despesa(s) importada(s)</li>
-                    {projectedCount > 0 && (
-                      <li>+ <strong className="text-primary">{projectedCount}</strong> parcela(s) futura(s) projetada(s)</li>
+                    {replacedCount > 0 && (
+                      <li>🔄 <strong className="text-foreground">{replacedCount}</strong> import(s) anterior(es) substituído(s)</li>
                     )}
+                    <li>+ <strong className="text-income">{importedCount}</strong> despesa(s) importada(s) como confirmadas</li>
                     {mergedCount > 0 && (
-                      <li>↺ <strong className="text-income">{mergedCount}</strong> parcela(s) reaproveitada(s) de projeção</li>
+                      <li>↺ <strong className="text-primary">{mergedCount}</strong> projeção(ões) promovida(s) a confirmadas</li>
                     )}
-                    {skippedDupCount > 0 && (
-                      <li>⚠️ <strong className="text-warning">{skippedDupCount}</strong> duplicata(s) ignorada(s)</li>
+                    {projectedCount > 0 && (
+                      <li>🔮 <strong className="text-primary">{projectedCount}</strong> parcela(s) futura(s) projetada(s)</li>
                     )}
                   </ul>
                 </div>

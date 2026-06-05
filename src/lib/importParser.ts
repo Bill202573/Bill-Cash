@@ -90,6 +90,25 @@ function getTag(block: string, tag: string): string {
   return sgmlM ? sgmlM[1].trim() : '';
 }
 
+/** Parse de valor monetário robusto: aceita BR (1.234,56) e US (1234.56) */
+function parseAmount(raw: string): number {
+  let s = raw.replace(/[R$\s]/g, '').trim();
+  if (s.includes('.') && s.includes(',')) {
+    // Brazilian: 1.234,56
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (s.includes(',')) {
+    // Could be Brazilian decimal: 234,56
+    s = s.replace(',', '.');
+  } else if ((s.match(/\./g) || []).length > 1) {
+    // Multiple dots without comma: "1.234.567" → BR thousands
+    s = s.replace(/\./g, '');
+  }
+  const n = parseFloat(s);
+  if (!isFinite(n)) return 0;
+  // Round to 2 decimals to avoid floating point garbage
+  return Math.round(n * 100) / 100;
+}
+
 // ─── OFX Parser ───────────────────────────────────────────────────────────────
 
 export function parseOFX(content: string, account = ''): ParsedRow[] {
@@ -105,12 +124,18 @@ export function parseOFX(content: string, account = ''): ParsedRow[] {
 
     const trntype = getTag(block, 'TRNTYPE').toUpperCase();
     const dtposted = getTag(block, 'DTPOSTED');
-    const trnamt = parseFloat(getTag(block, 'TRNAMT').replace(',', '.'));
+    // OFX padrão é US (1234.56), mas alguns bancos exportam em BR (1.234,56)
+    // parseAmount lida com ambos
+    const rawAmt = getTag(block, 'TRNAMT');
+    const trnamt = rawAmt.startsWith('-')
+      ? -parseAmount(rawAmt.slice(1))
+      :  parseAmount(rawAmt);
     const memo = getTag(block, 'MEMO') || getTag(block, 'NAME') || getTag(block, 'FITID');
 
-    if (!dtposted || isNaN(trnamt) || !memo) continue;
+    if (!dtposted || isNaN(trnamt) || trnamt === 0 || !memo) continue;
 
-    const amount = Math.abs(trnamt);
+    // Round to avoid float precision issues
+    const amount = Math.round(Math.abs(trnamt) * 100) / 100;
     // OFX: positive = credit/income, negative = debit/expense
     // TRNTYPE: CREDIT, DEP, INT, DIV → income; DEBIT, CHECK, PAYMENT → expense
     const incomeTypes = ['CREDIT', 'DEP', 'INT', 'DIV', 'DIRECTDEP', 'OTHER'];
@@ -166,20 +191,6 @@ function parseDate(raw: string): string | null {
   const mdy = s.match(mdyRe);
   if (mdy) return `${mdy[3]}-${mdy[1]}-${mdy[2]}`;
   return null;
-}
-
-function parseAmount(raw: string): number {
-  // Remove currency symbols, spaces; handle Brazilian format (1.234,56)
-  let s = raw.replace(/[R$\s]/g, '').trim();
-  // If both . and ,: detect which is decimal
-  if (s.includes('.') && s.includes(',')) {
-    // Brazilian: 1.234,56
-    s = s.replace(/\./g, '').replace(',', '.');
-  } else if (s.includes(',')) {
-    // Could be Brazilian decimal: 234,56
-    s = s.replace(',', '.');
-  }
-  return parseFloat(s);
 }
 
 export function parseCSV(content: string, account = ''): ParsedRow[] {
