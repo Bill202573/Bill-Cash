@@ -207,17 +207,27 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
   };
 
   /** Concilia diretamente com uma transação — registra pagamento usando seus dados */
-  const handleReconcile = async (tx: { id: string; amount: number; date: string }) => {
+  const handleReconcile = async (tx: { id: string; amount: number; date: string; description: string }) => {
+    // Mostra confirmação antes de conciliar
+    const confirmMsg =
+      `Confirmar conciliação?\n\n` +
+      `Transação: ${tx.description}\n` +
+      `Valor pago: ${fmt(tx.amount)}\n` +
+      `Data do pagamento: ${new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}`;
+    if (!confirm(confirmMsg)) return;
+
     try {
       await markPaid.mutateAsync({
         bill_id:         bill.id,
         year_month:      yearMonth,
+        // Mantém os dados ORIGINAIS da conta (valor cobrado + vencimento)
         expected_amount: expectedAmount ? parseMoney(expectedAmount) : null,
         due_date:        dueDate || null,
+        // Usa os dados EFETIVOS da transação conciliada
         paid_amount:     tx.amount,
         paid_date:       tx.date,
         transaction_id:  tx.id,
-        notes:           null,
+        notes:           `Conciliado com: ${tx.description}`,
       });
       toast.success(`Conciliada: ${fmt(tx.amount)} em ${new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')}`);
       onClose();
@@ -230,42 +240,53 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarCheck className="h-5 w-5 text-primary" />
-            {bill.name}
-            <span className="text-muted-foreground font-normal capitalize text-sm">
-              — {competencyLabel}
+          <DialogTitle className="flex items-start gap-2 pr-6 text-base">
+            <CalendarCheck className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+            <span className="flex-1 min-w-0">
+              <span className="font-semibold">{bill.name}</span>{' '}
+              <span className="text-muted-foreground font-normal capitalize text-sm block sm:inline">
+                — {competencyLabel}
+              </span>
             </span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Status atual */}
-          <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+          <div className={`flex items-start gap-2 p-2.5 rounded-lg text-xs sm:text-sm ${
             status === 'paid'    ? 'bg-income/10  text-income'  :
             status === 'overdue' ? 'bg-expense/10 text-expense' :
                                    'bg-warning/10 text-warning'
           }`}>
             {isPaid && (
-              <><Check className="h-4 w-4" /> Pago em {new Date(payment!.paid_date! + 'T12:00:00').toLocaleDateString('pt-BR')} · {fmt(payment!.paid_amount!)}</>
+              <>
+                <Check className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span>Pago em <strong>{new Date(payment!.paid_date! + 'T12:00:00').toLocaleDateString('pt-BR')}</strong> · {fmt(payment!.paid_amount!)}</span>
+              </>
             )}
             {status === 'overdue' && (
-              <><AlertTriangle className="h-4 w-4" /> Em atraso{payment?.due_date ? ` — venceu em ${new Date(payment.due_date + 'T12:00:00').toLocaleDateString('pt-BR')}` : ''}</>
+              <>
+                <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span>Em atraso{payment?.due_date ? <> — venceu em <strong>{new Date(payment.due_date + 'T12:00:00').toLocaleDateString('pt-BR')}</strong></> : ''}</span>
+              </>
             )}
             {status === 'pending' && (
-              <><Clock className="h-4 w-4" /> A vencer{payment?.due_date ? ` em ${new Date(payment.due_date + 'T12:00:00').toLocaleDateString('pt-BR')}` : ''}</>
+              <>
+                <Clock className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span>A vencer{payment?.due_date ? <> em <strong>{new Date(payment.due_date + 'T12:00:00').toLocaleDateString('pt-BR')}</strong></> : ''}</span>
+              </>
             )}
           </div>
 
-          {/* Cálculo de multa e juros — só aparece se em atraso e tem regras configuradas */}
+          {/* Cálculo de multa e juros */}
           {status === 'overdue' && (() => {
             const calc = calculateLateFee(bill, payment);
             if (calc.extraCharges <= 0) return null;
             return (
-              <div className="bg-expense/5 border border-expense/30 rounded-lg p-3 text-xs space-y-1.5">
-                <p className="font-semibold text-expense flex items-center gap-1.5">
+              <div className="bg-expense/5 border border-expense/30 rounded-lg p-2.5 text-xs space-y-1">
+                <p className="font-semibold text-expense">
                   ⚠️ Atualizado para hoje ({calc.daysLate} {calc.daysLate === 1 ? 'dia' : 'dias'} de atraso)
                 </p>
                 <div className="flex justify-between text-muted-foreground">
@@ -280,23 +301,20 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
                 )}
                 {calc.interestTotal > 0 && (
                   <div className="flex justify-between text-muted-foreground">
-                    <span>+ Juros ({fmt(calc.interestPerDay)}/dia × {calc.daysLate})</span>
-                    <span>{fmt(calc.interestTotal)}</span>
+                    <span className="truncate pr-2">+ Juros ({fmt(calc.interestPerDay)}/d × {calc.daysLate})</span>
+                    <span className="flex-shrink-0">{fmt(calc.interestTotal)}</span>
                   </div>
                 )}
-                <div className="border-t border-expense/20 pt-1.5 flex justify-between font-bold text-expense">
-                  <span>Total a pagar hoje</span>
+                <div className="border-t border-expense/20 pt-1 flex justify-between font-bold text-expense">
+                  <span>Total hoje</span>
                   <span>{fmt(calc.totalDue)}</span>
                 </div>
-                <p className="text-muted-foreground italic">
-                  Cobrança extra: <span className="text-expense font-medium">{fmt(calc.extraCharges)}</span>
-                </p>
               </div>
             );
           })()}
 
           {/* === Bloco 1: Dados da conta === */}
-          <div className="bg-secondary/30 border border-border/30 rounded-lg p-3 space-y-3">
+          <div className="bg-secondary/30 border border-border/30 rounded-lg p-2.5 space-y-2.5">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               📄 Dados da conta
             </p>
@@ -306,7 +324,7 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
               <select
                 value={yearMonth}
                 onChange={e => setYearMonth(e.target.value)}
-                className="w-full h-9 px-2 py-1.5 text-sm rounded-md border border-input bg-background mt-1"
+                className="w-full h-9 px-2 text-sm rounded-md border border-input bg-background mt-1 capitalize"
                 disabled={isPaid}
               >
                 {MONTH_RANGE.map(m => (
@@ -315,42 +333,39 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Mês a que a conta se refere
-              </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Valor da conta (R$)</Label>
-                <Input type="text" inputMode="decimal"
-                  value={expectedAmount}
-                  onChange={e => setExpectedAmount(e.target.value)}
-                  placeholder="Ex: 1.610,16"
-                  className="mt-1 h-9"
-                  disabled={isPaid}
-                />
-                {expectedAmount && parseMoney(expectedAmount) > 0 && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    = {fmt(parseMoney(expectedAmount))}
-                  </p>
-                )}
-              </div>
-              <div>
-                <Label className="text-xs">Data de vencimento</Label>
-                <Input type="date"
-                  value={dueDate}
-                  onChange={e => setDueDate(e.target.value)}
-                  className="mt-1 h-9"
-                  disabled={isPaid}
-                />
-              </div>
+            <div>
+              <Label className="text-xs">Valor da conta (R$)</Label>
+              <Input type="text" inputMode="decimal"
+                value={expectedAmount}
+                onChange={e => setExpectedAmount(e.target.value)}
+                placeholder="Ex: 1.610,16"
+                className="mt-1 h-9"
+                disabled={isPaid}
+              />
+              {expectedAmount && parseMoney(expectedAmount) > 0 && (
+                <p className="text-xs text-primary mt-0.5 font-medium">
+                  = {fmt(parseMoney(expectedAmount))}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-xs">Data de vencimento</Label>
+              <Input type="date"
+                value={dueDate}
+                onChange={e => setDueDate(e.target.value)}
+                className="mt-1 h-9"
+                disabled={isPaid}
+              />
             </div>
 
             {!isPaid && (
               <Button
+                size="sm"
                 variant="outline"
-                className="w-full h-9 border-primary/30 text-primary hover:bg-primary/10"
+                className="w-full border-primary/40 text-primary hover:bg-primary/10"
                 onClick={handleSaveEntry}
                 disabled={saveEntry.isPending || !expectedAmount || !dueDate}>
                 💾 Salvar conta (sem marcar como pago)
@@ -360,25 +375,24 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
 
           {/* === Bloco 2: Pagamento === */}
           {isPaid ? (
-            <Button variant="outline" className="w-full text-expense border-expense/30 hover:bg-expense/10"
+            <Button variant="outline" size="sm" className="w-full text-expense border-expense/30 hover:bg-expense/10"
               onClick={handleUnpay} disabled={markUnpaid.isPending}>
               <X className="h-4 w-4 mr-2" /> Desfazer pagamento
             </Button>
           ) : (
-            <div className="space-y-3">
-              <Button
-                variant="outline"
-                className="w-full justify-center"
-                onClick={() => setShowPayForm(!showPayForm)}>
-                {showPayForm ? '▼' : '▶'} {showPayForm ? 'Esconder' : 'Marcar como pago'}
-              </Button>
+            <>
+              {/* Botão: Marcar como pago manual */}
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-center"
+                  onClick={() => setShowPayForm(!showPayForm)}>
+                  {showPayForm ? '▼ Esconder' : '▶ Marcar como pago manualmente'}
+                </Button>
 
-              {showPayForm && (
-                <div className="bg-income/5 border border-income/20 rounded-lg p-3 space-y-3 animate-in fade-in">
-                  <p className="text-xs font-medium text-income uppercase tracking-wide">
-                    ✓ Registrar pagamento
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
+                {showPayForm && (
+                  <div className="bg-income/5 border border-income/20 rounded-lg p-2.5 space-y-2.5 mt-2 animate-in fade-in">
                     <div>
                       <Label className="text-xs">Valor pago (R$)</Label>
                       <Input type="text" inputMode="decimal"
@@ -388,7 +402,7 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
                         className="mt-1 h-9"
                       />
                       {paidAmount && parseMoney(paidAmount) > 0 && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                        <p className="text-xs text-income mt-0.5 font-medium">
                           = {fmt(parseMoney(paidAmount))}
                         </p>
                       )}
@@ -401,81 +415,79 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
                         className="mt-1 h-9"
                       />
                     </div>
+
+                    <Button size="sm" className="w-full" onClick={handlePay}
+                      disabled={markPaid.isPending || !paidAmount}>
+                      <Check className="h-4 w-4 mr-2" /> Confirmar pagamento
+                    </Button>
                   </div>
+                )}
+              </div>
 
-                  <Button className="w-full h-9" onClick={handlePay}
-                    disabled={markPaid.isPending || !paidAmount}>
-                    <Check className="h-4 w-4 mr-2" /> Confirmar pagamento
-                  </Button>
-                </div>
-              )}
+              {/* Botão: Conciliação automática */}
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-center"
+                  onClick={() => setShowSearch(!showSearch)}>
+                  {showSearch ? '▼ Esconder' : '▶ 🔍 Buscar transação e conciliar'}
+                </Button>
 
-              {/* === Bloco 3: Buscar transação para conciliar === */}
-              <Button
-                variant="outline"
-                className="w-full justify-center"
-                onClick={() => setShowSearch(!showSearch)}>
-                {showSearch ? '▼' : '▶'} 🔍 Buscar transação para conciliar
-              </Button>
-
-              {showSearch && (
-                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 space-y-3 animate-in fade-in">
-                  <p className="text-xs font-medium text-primary uppercase tracking-wide">
-                    Conciliação manual
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Busque uma transação pelo nome (ex: Light, CEG, Protel) e clique para conciliar.
-                    O sistema vai usar o valor e a data da transação.
-                  </p>
-
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Digite parte do nome..."
-                      value={searchTerm}
-                      onChange={e => setSearchTerm(e.target.value)}
-                      className="h-9 pl-9"
-                      autoFocus
-                    />
-                  </div>
-
-                  {searchTerm.trim() && (
+                {showSearch && (
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-2.5 space-y-2.5 mt-2 animate-in fade-in">
                     <p className="text-xs text-muted-foreground">
-                      {searchResults.length === 0
-                        ? 'Nenhuma transação encontrada'
-                        : `${searchResults.length} transação(ões) encontrada(s) — clique para conciliar`}
+                      Busque a transação real do extrato. Ao clicar, o pagamento será salvo com a <strong>data</strong> e <strong>valor</strong> da transação.
                     </p>
-                  )}
 
-                  <div className="space-y-1.5 max-h-72 overflow-y-auto">
-                    {searchResults.map(tx => (
-                      <button
-                        key={tx.id}
-                        onClick={() => handleReconcile(tx)}
-                        disabled={markPaid.isPending}
-                        className="w-full flex items-center justify-between p-2 rounded-md border border-border/40 bg-background/40 hover:bg-primary/10 hover:border-primary/30 transition-colors text-left"
-                      >
-                        <div className="min-w-0 mr-2">
-                          <p className="text-xs font-medium truncate">
-                            {tx.description}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')} · {tx.account} · <span className="capitalize">{tx.category}</span>
-                          </p>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="text-sm font-bold text-expense">{fmt(tx.amount)}</p>
-                          <p className="text-xs text-primary flex items-center gap-0.5">
-                            <Zap className="h-3 w-3" /> Conciliar
-                          </p>
-                        </div>
-                      </button>
-                    ))}
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Ex: Light, CEG, Protel..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="h-9 pl-9"
+                      />
+                    </div>
+
+                    {searchTerm.trim() && (
+                      <p className="text-xs text-muted-foreground">
+                        {searchResults.length === 0
+                          ? '⚠ Nenhuma transação encontrada'
+                          : `${searchResults.length} transação(ões) encontrada(s)`}
+                      </p>
+                    )}
+
+                    <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                      {searchResults.map(tx => (
+                        <button
+                          key={tx.id}
+                          onClick={() => handleReconcile(tx)}
+                          disabled={markPaid.isPending}
+                          className="w-full p-2 rounded-md border border-border/40 bg-background/40 hover:bg-primary/10 hover:border-primary/40 transition-colors text-left"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs font-medium leading-tight flex-1 min-w-0 break-words">
+                              {tx.description}
+                            </p>
+                            <p className="text-sm font-bold text-expense flex-shrink-0">{fmt(tx.amount)}</p>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 mt-1">
+                            <p className="text-xs text-muted-foreground truncate flex-1 min-w-0">
+                              {new Date(tx.date + 'T12:00:00').toLocaleDateString('pt-BR')} · {tx.account}
+                            </p>
+                            <p className="text-xs text-primary flex items-center gap-0.5 flex-shrink-0 font-medium">
+                              <Zap className="h-3 w-3" /> Conciliar
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       </DialogContent>
