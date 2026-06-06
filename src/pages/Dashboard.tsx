@@ -3,12 +3,8 @@ import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SummaryCard from '@/components/SummaryCard';
 import TransactionList from '@/components/TransactionList';
-import CategoryBreakdown from '@/components/CategoryBreakdown';
 import { CategoryStatement } from '@/components/CategoryStatement';
 import CreditCardSection from '@/components/CreditCardSection';
-import MonthlyChart from '@/components/MonthlyChart';
-import { HealthScore } from '@/components/HealthScore';
-import { InsightPanel } from '@/components/InsightPanel';
 import { TransactionForm } from '@/components/TransactionForm';
 import { IncludeCardsToggle } from '@/components/IncludeCardsToggle';
 import { FinancialSnapshot } from '@/components/FinancialSnapshot';
@@ -19,12 +15,7 @@ import { useCreditCards } from '@/hooks/useCreditCards';
 import { useBudgetGoals } from '@/hooks/useBudgetGoals';
 import {
   getMonthlySummary,
-  getCategoryBreakdown,
-  getIncomeCategoryBreakdown,
   getCategoryBreakdownWithSubs,
-  getMonthlyChartData,
-  calculateHealthScore,
-  generateInsights,
   currentMonth,
   lastNMonths,
   fmt,
@@ -59,16 +50,9 @@ export default function Dashboard() {
 
   // ── Data derived from selected month ─────────────────────────────────────
   const summary          = useMemo(() => getMonthlySummary(transactions, selectedMonth),         [transactions, selectedMonth]);
-  const expenseCategories= useMemo(() => getCategoryBreakdown(transactions, selectedMonth),      [transactions, selectedMonth]);
-  const incomeCategories = useMemo(() => getIncomeCategoryBreakdown(transactions, selectedMonth),[transactions, selectedMonth]);
   const expenseCatsWithSubs = useMemo(() => getCategoryBreakdownWithSubs(transactions, selectedMonth, 'expense'), [transactions, selectedMonth]);
   const incomeCatsWithSubs  = useMemo(() => getCategoryBreakdownWithSubs(transactions, selectedMonth, 'income'),  [transactions, selectedMonth]);
   const monthTxs         = useMemo(() => transactions.filter(t => t.date.startsWith(selectedMonth)), [transactions, selectedMonth]);
-
-  // These always use the current real month (health + chart are "now" metrics)
-  const chartData   = useMemo(() => getMonthlyChartData(transactions),                              [transactions]);
-  const healthScore = useMemo(() => calculateHealthScore(transactions, debts, cards, goals),         [transactions, debts, cards, goals]);
-  const insights    = useMemo(() => generateInsights(transactions, debts, cards, goals),             [transactions, debts, cards, goals]);
 
   const totalCardBill = cards.reduce((s, c) => s + c.current_bill, 0);
 
@@ -147,14 +131,14 @@ export default function Dashboard() {
         <SummaryCard
           title="Receitas"
           value={fmt(summary.income)}
-          change={`${incomeCategories.length} categoria(s)`}
+          change={`${incomeCatsWithSubs.length} categoria(s)`}
           changeType="positive"
           icon="income"
         />
         <SummaryCard
           title="Despesas"
           value={fmt(summary.expenses)}
-          change={`${expenseCategories.length} categoria(s)`}
+          change={`${expenseCatsWithSubs.length} categoria(s)`}
           changeType={summary.expenses > summary.income ? 'negative' : 'neutral'}
           icon="expense"
         />
@@ -175,18 +159,6 @@ export default function Dashboard() {
           totalExpenses={summary.expenses}
           totalIncome={summary.income}
         />
-      </div>
-
-      {/* ── Health score + Insights (always current month) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <HealthScore score={healthScore} />
-        <InsightPanel insights={insights} maxVisible={4} />
-      </div>
-
-      {/* ── Monthly trend chart + compact category bar ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <MonthlyChart data={chartData} />
-        <CategoryBreakdown categories={expenseCategories} />
       </div>
 
       {/* ── Transactions (filtered by month) + Cards ── */}

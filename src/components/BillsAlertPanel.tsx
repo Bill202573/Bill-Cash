@@ -77,8 +77,16 @@ export function BillsAlertPanel() {
           totalDue:     calc.totalDue > 0 ? calc.totalDue : expectedAmount,
         };
 
-        if (status === 'overdue') ovd.push(row);
-        else if (ym === curMonth) upc.push(row); // só "a vencer" do mês atual
+        if (status === 'overdue') {
+          ovd.push(row);
+        } else if (status === 'pending') {
+          // Só adiciona "a vencer" se vence nos próximos 7 dias
+          const due = new Date(dueDate + 'T12:00:00');
+          const daysUntil = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysUntil >= 0 && daysUntil <= 7) {
+            upc.push(row);
+          }
+        }
       });
     });
 
