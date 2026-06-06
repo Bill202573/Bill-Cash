@@ -118,11 +118,15 @@ export interface BudgetGoal {
   created_at?: string;
 }
 
+export type FixedBillType = 'utility' | 'tax' | 'subscription' | 'insurance' | 'other';
+
 export interface FixedBill {
   id:                 string;
   name:               string;
   amount:             number;
   category?:          string;
+  /** Tipo de conta: contas fixas (utilidades) vs impostos vs outros */
+  bill_type?:         FixedBillType;  // default: 'utility'
   /** Mês a que a conta se refere (ex: Janeiro) */
   competence_month?:  string;     // YYYY-MM
   /** Data real de vencimento (quando você efetivamente paga) */

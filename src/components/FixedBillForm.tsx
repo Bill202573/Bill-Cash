@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAddFixedBill, useUpdateFixedBill, type FixedBill } from '@/hooks/useFixedBills';
 import { useAccounts } from '@/hooks/useAccounts';
-import { EXPENSE_CATEGORIES } from '@/lib/supabase';
+import { EXPENSE_CATEGORIES, type FixedBillType } from '@/lib/supabase';
 import { parseMoney } from '@/lib/financial';
 import { toast } from 'sonner';
 
@@ -32,6 +32,7 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
 
   const [form, setForm] = useState({
     name:                  bill?.name              ?? '',
+    bill_type:             (bill?.bill_type ?? 'utility') as FixedBillType,
     category:              bill?.category          ?? 'Utilidades',
     expected_amount:       bill?.expected_amount?.toString() ?? '',
     due_day:               bill?.due_day?.toString() ?? '10',
@@ -75,6 +76,7 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
 
     const payload = {
       name:                  form.name.trim(),
+      bill_type:             form.bill_type,
       category:              form.category,
       expected_amount:       form.expected_amount ? parseMoney(form.expected_amount) : null,
       active_months,
@@ -109,12 +111,27 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>{isEditing ? 'Editar' : 'Nova'} Conta Fixa</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} id="fixed-bill-form" className="space-y-4 flex-1 overflow-y-auto pr-4">
+          {/* Tipo de conta */}
+          <div>
+            <Label>Tipo de conta</Label>
+            <Select value={form.bill_type} onValueChange={v => setForm(f => ({ ...f, bill_type: v as FixedBillType }))}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="utility">🏠 Utilidades (Luz, Água, Internet)</SelectItem>
+                <SelectItem value="tax">📋 Impostos (IPVA, IPTU, etc)</SelectItem>
+                <SelectItem value="subscription">📱 Assinaturas (Streaming, Apps)</SelectItem>
+                <SelectItem value="insurance">🛡️ Seguros</SelectItem>
+                <SelectItem value="other">📌 Outro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Nome + Categoria */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -343,14 +360,15 @@ export function FixedBillForm({ open, onClose, bill }: Props) {
             </p>
           </div>
 
-          {/* Botões */}
-          <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" className="flex-1" disabled={loading}>
-              {loading ? 'Salvando...' : isEditing ? 'Atualizar' : 'Adicionar'}
-            </Button>
-          </div>
         </form>
+
+        {/* Botões (fixos no final) */}
+        <div className="flex gap-3 pt-4 border-t border-border flex-shrink-0">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
+          <Button type="submit" form="fixed-bill-form" className="flex-1" disabled={loading}>
+            {loading ? 'Salvando...' : isEditing ? 'Atualizar' : 'Adicionar'}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
