@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { FamilyScopeProvider } from '@/contexts/FamilyContext';
 import { Layout } from '@/components/Layout';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useAuth } from '@/hooks/useAuth';
@@ -49,9 +50,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster richColors position="top-right" />
-      <BrowserRouter>
+    <FamilyScopeProvider>
+      <TooltipProvider>
+        <Toaster richColors position="top-right" />
+        <BrowserRouter>
         <Routes>
           {/* Public routes */}
           <Route path="/login"  element={<Login />} />
@@ -160,6 +162,7 @@ const App = () => (
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
+    </FamilyScopeProvider>
   </QueryClientProvider>
 );
 

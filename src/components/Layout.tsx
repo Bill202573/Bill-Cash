@@ -6,6 +6,7 @@ import {
   Lightbulb, Wallet, FileText, Bot, Settings, Menu, X, Tag,
 } from 'lucide-react';
 import { ProfileMenu } from './ProfileMenu';
+import { ScopeSelector } from './ScopeSelector';
 
 interface LayoutProps { children: ReactNode }
 
@@ -63,8 +64,9 @@ export function Layout({ children }: LayoutProps) {
           })}
         </nav>
 
-        {/* Profile menu */}
-        <div className="px-3 py-3 border-t border-border/30">
+        {/* Scope Selector + Profile Menu */}
+        <div className="px-3 py-3 space-y-2 border-t border-border/30">
+          <ScopeSelector />
           <ProfileMenu />
         </div>
 
