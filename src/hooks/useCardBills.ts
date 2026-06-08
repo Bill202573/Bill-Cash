@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, type CardBill } from '@/lib/supabase';
 import { useFamilyScope } from '@/contexts/FamilyContext';
+import { useAuth } from './useAuth';
 import { useFamily } from './useFamily';
 
 /** Lista faturas (opcionalmente filtrada por cartão) */
