@@ -82,9 +82,18 @@ export function useTransactions() {
 
 export function useAddTransaction() {
   const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async (tx: Omit<Transaction, 'id' | 'created_at'>) => {
-      const { data, error } = await supabase.from('transactions').insert([tx]).select().single();
+      // Pega o user diretamente do Supabase Auth no momento do insert
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error('Usuário não autenticado');
+
+      const payload = {
+        ...tx,
+        user_id: user.id,  // Usa o user_id real do auth
+      };
+      const { data, error } = await supabase.from('transactions').insert([payload]).select().single();
       if (error) throw error;
       return data as Transaction;
     },

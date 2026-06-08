@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, type CardBill } from '@/lib/supabase';
 import { useFamilyScope } from '@/contexts/FamilyContext';
-import { useAuth } from './useAuth';
 import { useFamily } from './useFamily';
 
 /** Lista faturas (opcionalmente filtrada por cartão) */
@@ -121,6 +120,7 @@ export function useDeleteCardBill() {
  */
 export function useReconcileCardBill() {
   const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       bill,
@@ -137,6 +137,10 @@ export function useReconcileCardBill() {
       paymentDate:     string;     // YYYY-MM-DD
       user?:           string;
     }) => {
+      // Pega o user diretamente do Supabase Auth no momento do insert
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+      if (authError || !authUser) throw new Error('Usuário não autenticado');
+
       // 1) Criar transação de débito na conta de pagamento
       const desc = `Pagamento fatura ${cardName} ${bill.month_ref}`;
       const { data: tx, error: e1 } = await supabase
@@ -149,6 +153,7 @@ export function useReconcileCardBill() {
           date:        paymentDate,
           account:     paymentAccount,
           user,
+          user_id:     authUser.id,  // Usa o user_id real do auth
         }])
         .select()
         .single();
