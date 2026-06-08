@@ -1,17 +1,39 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, type CardBill } from '@/lib/supabase';
+import { useFamilyScope } from '@/contexts/FamilyContext';
+import { useAuth } from './useAuth';
+import { useFamily } from './useFamily';
 
 /** Lista faturas (opcionalmente filtrada por cartão) */
 export function useCardBills(cardId?: string) {
+  const { scope } = useFamilyScope();
+  const { user } = useAuth();
+  const { data: family } = useFamily();
+
   return useQuery({
-    queryKey: ['card_bills', cardId ?? 'all'],
+    queryKey: ['card_bills', cardId ?? 'all', scope, user?.id, family?.members],
     queryFn: async () => {
+      if (!user?.id) return [];
+
       let q = supabase.from('card_bills').select('*').order('month_ref', { ascending: false });
-      if (cardId) q = q.eq('card_id', cardId);
+
+      if (cardId) {
+        q = q.eq('card_id', cardId);
+      } else {
+        // Filtro por scope
+        if (scope === 'personal') {
+          q = q.eq('user_id', user.id);
+        } else if (scope === 'family' && family?.members) {
+          const memberIds = family.members.map(m => m.user_id);
+          q = q.in('user_id', memberIds);
+        }
+      }
+
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as CardBill[];
     },
+    enabled: !!user?.id,
   });
 }
 

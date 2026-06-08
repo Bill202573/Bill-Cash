@@ -1,5 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, type Transaction } from '@/lib/supabase';
+import { useFamilyScope } from '@/contexts/FamilyContext';
+import { useAuth } from './useAuth';
+import { useFamily } from './useFamily';
 
 // Busca quantas transações têm o mesmo nome mas categoria diferente
 export async function countSimilarTransactions(
@@ -45,16 +48,35 @@ export function useBulkCategorize() {
 }
 
 export function useTransactions() {
+  const { scope } = useFamilyScope();
+  const { user } = useAuth();
+  const { data: family } = useFamily();
+
   return useQuery({
-    queryKey: ['transactions'],
+    queryKey: ['transactions', scope, user?.id, family?.members],
     queryFn: async () => {
-      const { data, error } = await supabase
+      if (!user?.id) return [];
+
+      let query = supabase
         .from('transactions')
         .select('*')
         .order('date', { ascending: false });
+
+      // Filtro por scope
+      if (scope === 'personal') {
+        // Mostra apenas transações do usuário atual
+        query = query.eq('user_id', user.id);
+      } else if (scope === 'family' && family?.members) {
+        // Mostra transações de todos os membros da família
+        const memberIds = family.members.map(m => m.user_id);
+        query = query.in('user_id', memberIds);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as Transaction[];
     },
+    enabled: !!user?.id,
   });
 }
 
