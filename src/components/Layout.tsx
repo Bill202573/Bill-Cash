@@ -40,6 +40,11 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </div>
 
+        {/* Scope Selector */}
+        <div className="px-3 py-3 border-b border-border/30">
+          <ScopeSelector />
+        </div>
+
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5">
           {NAV.map(({ path, icon: Icon, label, highlight }) => {
@@ -64,9 +69,8 @@ export function Layout({ children }: LayoutProps) {
           })}
         </nav>
 
-        {/* Scope Selector + Profile Menu */}
-        <div className="px-3 py-3 space-y-2 border-t border-border/30">
-          <ScopeSelector />
+        {/* Profile Menu */}
+        <div className="px-3 py-3 border-t border-border/30">
           <ProfileMenu />
         </div>
 
@@ -81,7 +85,10 @@ export function Layout({ children }: LayoutProps) {
           <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">B</div>
           <span className="font-display font-bold">Bill Cash</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <div className="w-8 h-8 flex items-center justify-center">
+            <ScopeSelector />
+          </div>
           <div className="w-8 h-8 flex items-center justify-center">
             <ProfileMenu />
           </div>
