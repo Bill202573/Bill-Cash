@@ -5,6 +5,7 @@ import {
   LayoutDashboard, ArrowLeftRight, CreditCard, Target,
   Lightbulb, Wallet, FileText, Bot, Settings, Menu, X, Tag,
 } from 'lucide-react';
+import { ProfileMenu } from './ProfileMenu';
 
 interface LayoutProps { children: ReactNode }
 
@@ -62,7 +63,12 @@ export function Layout({ children }: LayoutProps) {
           })}
         </nav>
 
-        <div className="px-5 py-4 border-t border-border/30">
+        {/* Profile menu */}
+        <div className="px-3 py-3 border-t border-border/30">
+          <ProfileMenu />
+        </div>
+
+        <div className="px-5 py-3 border-t border-border/30">
           <p className="text-xs text-muted-foreground">Bill Cash © 2026</p>
         </div>
       </aside>
@@ -73,9 +79,14 @@ export function Layout({ children }: LayoutProps) {
           <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">B</div>
           <span className="font-display font-bold">Bill Cash</span>
         </div>
-        <button onClick={() => setMobileOpen(v => !v)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 flex items-center justify-center">
+            <ProfileMenu />
+          </div>
+          <button onClick={() => setMobileOpen(v => !v)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       {/* ── Mobile drawer ── */}

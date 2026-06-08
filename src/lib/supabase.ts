@@ -19,6 +19,7 @@ export interface Transaction {
   date:         string;       // YYYY-MM-DD
   account:      string;
   user:         string;
+  user_id?:     string;       // UUID do Supabase Auth
   notes?:       string;
   created_at?:  string;
 }
@@ -31,6 +32,7 @@ export interface CreditCard {
   credit_limit:     number;
   due_date:         string;
   color:            string;
+  user_id?:         string;        // UUID do Supabase Auth
   closing_day?:     number;        // dia do mês em que a fatura fecha (1-31)
   due_day?:         number;        // dia do mês de vencimento (1-31)
   payment_account?: string;        // nome da conta usada para pagar (FK por nome, como nas transactions)
@@ -88,6 +90,7 @@ export interface Account {
   balance:               number;     // legado — mantido para compat. O saldo "vivo" é calculado.
   owner:                 string;
   color:                 string;
+  user_id?:              string;     // UUID do Supabase Auth
   /** Saldo inicial: ponto de partida para o cálculo dinâmico */
   initial_balance?:      number;
   /** Data do saldo inicial. Transações ANTES desta data são ignoradas no cálculo */
@@ -105,6 +108,7 @@ export interface Debt {
   remaining:       number;
   interest_rate:   number;
   monthly_payment: number;
+  user_id?:        string;        // UUID do Supabase Auth
   due_date?:       string;
   notes?:          string;
   created_at?:     string;
@@ -115,6 +119,7 @@ export interface BudgetGoal {
   category: string;
   month:    string;   // YYYY-MM
   limit:    number;
+  user_id?: string;  // UUID do Supabase Auth
   created_at?: string;
 }
 
