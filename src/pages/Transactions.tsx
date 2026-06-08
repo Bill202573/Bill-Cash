@@ -79,25 +79,28 @@ export default function Transactions() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      {/* Header - responsive */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-display font-bold">Transações</h2>
           <p className="text-muted-foreground text-sm mt-1">
             {filtered.length} transação(ões) encontrada(s)
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setShowDelete(true)} size="sm" variant="outline" className="gap-2 text-red-500 hover:text-red-600">
-            <Trash2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Deletar</span>
+
+        {/* Buttons - stack vertical em mobile, horizontal em desktop */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button onClick={() => setShowForm(true)} className="gap-2 order-first sm:order-last">
+            <Plus className="h-4 w-4" />
+            <span>Nova Transação</span>
           </Button>
           <Button onClick={() => setShowImport(true)} size="sm" variant="outline" className="gap-2">
             <Upload className="h-4 w-4" />
-            <span className="hidden sm:inline">Importar Extrato</span>
+            <span className="hidden sm:inline">Importar</span>
           </Button>
-          <Button onClick={() => setShowForm(true)} size="sm" className="gap-2">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Nova Transação</span>
+          <Button onClick={() => setShowDelete(true)} size="sm" variant="outline" className="gap-2 text-red-500 hover:text-red-600">
+            <Trash2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Deletar</span>
           </Button>
         </div>
       </div>
@@ -154,24 +157,25 @@ export default function Transactions() {
         </div>
       )}
 
-      {/* Summary chips */}
-      <div className="grid grid-cols-4 gap-3 mb-5">
+      {/* Summary chips - responsive */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3 mb-5">
         {[
           { label: 'Receitas',       value: summary.income,    color: 'text-income' },
           { label: 'Despesas',       value: summary.expenses,  color: 'text-expense' },
           { label: 'Transferências', value: summary.transfers, color: 'text-muted-foreground' },
           { label: 'Saldo',          value: summary.balance,   color: summary.balance >= 0 ? 'text-income' : 'text-expense' },
         ].map(({ label, value, color }) => (
-          <div key={label} className="glass-card rounded-lg p-3 text-center">
+          <div key={label} className="glass-card rounded-lg p-3 lg:p-3 text-center border border-border/20">
             <p className="text-xs text-muted-foreground">{label}</p>
-            <p className={`text-base font-display font-bold ${color}`}>{fmt(value)}</p>
+            <p className={`text-sm lg:text-base font-display font-bold ${color}`}>{fmt(value)}</p>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="glass-card rounded-lg p-4 mb-4 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      {/* Filters - responsive grid */}
+      <div className="glass-card rounded-lg p-4 mb-4 border border-border/20">
+        {/* Search - full width */}
+        <div className="relative mb-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar descrição..."
@@ -180,50 +184,57 @@ export default function Transactions() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-full sm:w-36">
-            <Filter className="h-3.5 w-3.5 mr-1" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os tipos</SelectItem>
-            <SelectItem value="income">Receitas</SelectItem>
-            <SelectItem value="expense">Despesas</SelectItem>
-            <SelectItem value="transfer">Transferências</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={filterCat} onValueChange={setFilterCat}>
-          <SelectTrigger className="w-full sm:w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ALL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={filterAccount} onValueChange={setFilterAccount}>
-          <SelectTrigger className="w-full sm:w-40">
-            <SelectValue placeholder="Conta" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as contas</SelectItem>
-            {availableAccounts.map(a => (
-              <SelectItem key={a} value={a}>{a}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={filterMonth} onValueChange={setFilterMonth}>
-          <SelectTrigger className="w-full sm:w-36">
-            <SelectValue placeholder="Mês" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os meses</SelectItem>
-            {availableMonths.map(m => (
-              <SelectItem key={m} value={m}>
-                {new Date(m + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
+        {/* Selects - responsive grid (2 col mobile, 4 col desktop) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-full text-sm">
+              <Filter className="h-3.5 w-3.5 mr-1" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os tipos</SelectItem>
+              <SelectItem value="income">Receitas</SelectItem>
+              <SelectItem value="expense">Despesas</SelectItem>
+              <SelectItem value="transfer">Transferências</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={filterCat} onValueChange={setFilterCat}>
+            <SelectTrigger className="w-full text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ALL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterAccount} onValueChange={setFilterAccount}>
+            <SelectTrigger className="w-full text-sm">
+              <SelectValue placeholder="Conta" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as contas</SelectItem>
+              {availableAccounts.map(a => (
+                <SelectItem key={a} value={a}>{a}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterMonth} onValueChange={setFilterMonth}>
+            <SelectTrigger className="w-full text-sm">
+              <SelectValue placeholder="Mês" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os meses</SelectItem>
+              {availableMonths.map(m => (
+                <SelectItem key={m} value={m}>
+                  {new Date(m + '-02').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {isLoading ? (

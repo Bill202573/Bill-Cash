@@ -128,9 +128,9 @@ export default function TransactionList({ transactions, limit, showActions = tru
 
   return (
     <>
-      <div className="glass-card rounded-lg p-5 animate-fade-in">
+      <div className="glass-card rounded-lg p-4 lg:p-5 animate-fade-in">
         <h3 className="font-display font-semibold text-lg mb-4">Transações Recentes</h3>
-        <div className="space-y-0.5">
+        <div className="space-y-2 lg:space-y-0.5">
           {items.map(tx => {
             const parsed = parseDescription(tx.description);
             // Despesas de cartão vêm com id prefixado "card-" pelo hook
@@ -140,102 +140,108 @@ export default function TransactionList({ transactions, limit, showActions = tru
             return (
               <div
                 key={tx.id}
-                className={`flex items-center gap-3 py-2.5 px-2 rounded-md hover:bg-secondary/50 transition-colors group ${
-                  isCardExpense ? 'bg-primary/5' : ''
+                className={`flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3 py-3 lg:py-2.5 px-3 lg:px-2 rounded-lg lg:rounded-md hover:bg-secondary/50 transition-colors group ${
+                  isCardExpense ? 'bg-primary/5' : 'border border-border/20'
                 }`}
                 title={isCardExpense ? 'Despesa de cartão (gerencie em Cartões)' : parsed.bankDetail}
               >
-                {/* Ícone */}
-                <div className={`p-1.5 rounded-md flex-shrink-0 ${
-                  isCardExpense        ? 'bg-primary/10'
-                : tx.type === 'income'  ? 'bg-income/10'
-                : tx.type === 'expense' ? 'bg-expense/10'
-                :                         'bg-primary/10'
-                }`}>
-                  {isCardExpense
-                    ? <CreditCard className="h-4 w-4 text-primary" />
-                  : tx.type === 'income'
-                    ? <ArrowUpRight className="h-4 w-4 text-income" />
-                  : tx.type === 'expense'
-                    ? <ArrowDownRight className="h-4 w-4 text-expense" />
-                    : <ArrowLeftRight className="h-4 w-4 text-primary" />}
-                </div>
-
-                {/* Descrição em até 3 linhas */}
-                <div className="flex-1 min-w-0">
-                  {/* Linha 1: tipo de operação */}
-                  <p className="text-sm font-medium truncate leading-snug">{parsed.type}</p>
-                  {/* Linha 2: entidade (pagador/recebedor) */}
-                  {parsed.entity && (
-                    <p className="text-xs text-foreground/70 truncate leading-snug">{parsed.entity}</p>
-                  )}
-                  {/* Linha 3: categoria + subcategoria + pessoa */}
-                  <p className="text-xs text-muted-foreground leading-snug">
-                    {tx.category}
-                    {tx.subcategory ? ` › ${tx.subcategory}` : ''}
-                    {' · '}{tx.user_label}
-                  </p>
-                </div>
-
-                {/* Valor + data */}
-                <div className="text-right flex-shrink-0">
-                  <p className={`text-sm font-semibold ${
-                    tx.type === 'income'  ? 'text-income'
-                  : tx.type === 'expense' ? 'text-expense'
-                  :                         'text-primary'
+                {/* Topo: Ícone + Descrição */}
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  {/* Ícone - maior em mobile */}
+                  <div className={`p-2 lg:p-1.5 rounded-lg lg:rounded-md flex-shrink-0 ${
+                    isCardExpense        ? 'bg-primary/10'
+                  : tx.type === 'income'  ? 'bg-income/10'
+                  : tx.type === 'expense' ? 'bg-expense/10'
+                  :                         'bg-primary/10'
                   }`}>
-                    {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '↔ '}{fmt(tx.amount)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{fmtDate(tx.date)}</p>
+                    {isCardExpense
+                      ? <CreditCard className="h-5 w-5 lg:h-4 lg:w-4 text-primary" />
+                    : tx.type === 'income'
+                      ? <ArrowUpRight className="h-5 w-5 lg:h-4 lg:w-4 text-income" />
+                    : tx.type === 'expense'
+                      ? <ArrowDownRight className="h-5 w-5 lg:h-4 lg:w-4 text-expense" />
+                      : <ArrowLeftRight className="h-5 w-5 lg:h-4 lg:w-4 text-primary" />}
+                  </div>
+
+                  {/* Descrição em até 3 linhas - maior em mobile */}
+                  <div className="flex-1 min-w-0">
+                    {/* Linha 1: tipo de operação */}
+                    <p className="text-sm lg:text-sm font-medium truncate leading-snug">{parsed.type}</p>
+                    {/* Linha 2: entidade (pagador/recebedor) */}
+                    {parsed.entity && (
+                      <p className="text-xs text-foreground/70 truncate leading-snug">{parsed.entity}</p>
+                    )}
+                    {/* Linha 3: categoria + subcategoria + pessoa */}
+                    <p className="text-xs text-muted-foreground leading-snug">
+                      {tx.category}
+                      {tx.subcategory ? ` › ${tx.subcategory}` : ''}
+                      {' · '}{tx.user_label}
+                    </p>
+                  </div>
                 </div>
 
-                {/* Ações */}
-                {showActions && (
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    {isCardExpense ? (
-                      <span
-                        className="text-[10px] px-2 py-0.5 rounded bg-primary/10 text-primary font-medium"
-                        title="Edite/delete esta despesa em Cartões"
-                      >
-                        Cartão
-                      </span>
-                    ) : (
-                      <>
-                        {tx.type === 'transfer' ? (
-                          <button
-                            onClick={() => handleUndoTransfer(tx)}
-                            className="p-1 rounded hover:bg-warning/10 text-muted-foreground hover:text-warning"
-                            title="Reverter transferência"
-                          >
-                            <Undo2 className="h-3.5 w-3.5" />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => setMarking(tx)}
-                            className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary"
-                            title="Marcar como transferência"
-                          >
-                            <ArrowLeftRight className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setEditing(tx)}
-                          className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
-                          title="Editar"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(tx.id)}
-                          className="p-1 rounded hover:bg-expense/10 text-muted-foreground hover:text-expense"
-                          title="Excluir"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </>
-                    )}
+                {/* Linha de baixo em mobile: Valor + Data + Ações */}
+                <div className="flex items-center gap-2 lg:gap-3">
+                  {/* Valor + data - melhor formatação em mobile */}
+                  <div className="text-right flex-shrink-0">
+                    <p className={`text-sm font-semibold ${
+                      tx.type === 'income'  ? 'text-income'
+                    : tx.type === 'expense' ? 'text-expense'
+                    :                         'text-primary'
+                    }`}>
+                      {tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '↔ '}{fmt(tx.amount)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{fmtDate(tx.date)}</p>
                   </div>
-                )}
+
+                  {/* Ações - sempre visíveis em mobile */}
+                  {showActions && (
+                    <div className="flex gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex-shrink-0">
+                      {isCardExpense ? (
+                        <span
+                          className="text-[10px] px-2 py-1 rounded bg-primary/10 text-primary font-medium whitespace-nowrap"
+                          title="Edite/delete esta despesa em Cartões"
+                        >
+                          Cartão
+                        </span>
+                      ) : (
+                        <>
+                          {tx.type === 'transfer' ? (
+                            <button
+                              onClick={() => handleUndoTransfer(tx)}
+                              className="p-1.5 lg:p-1 rounded hover:bg-warning/10 text-muted-foreground hover:text-warning transition-colors"
+                              title="Reverter transferência"
+                            >
+                              <Undo2 className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setMarking(tx)}
+                              className="p-1.5 lg:p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                              title="Marcar como transferência"
+                            >
+                              <ArrowLeftRight className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setEditing(tx)}
+                            className="p-1.5 lg:p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                            title="Editar"
+                          >
+                            <Pencil className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(tx.id)}
+                            className="p-1.5 lg:p-1 rounded hover:bg-expense/10 text-muted-foreground hover:text-expense transition-colors"
+                            title="Excluir"
+                          >
+                            <Trash2 className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
