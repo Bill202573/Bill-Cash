@@ -1,8 +1,15 @@
 import { useState } from 'react';
-import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Pencil, Trash2, Undo2, CreditCard } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Pencil, Trash2, Undo2, CreditCard, MoreVertical } from 'lucide-react';
 import { useDeleteTransaction } from '@/hooks/useTransactions';
 import { TransactionForm } from './TransactionForm';
 import { MarkAsTransferModal } from './MarkAsTransferModal';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import type { Transaction } from '@/lib/supabase';
 import { fmt } from '@/lib/financial';
 import { toast } from 'sonner';
@@ -188,9 +195,9 @@ export default function TransactionList({ transactions, limit, showActions = tru
                   </p>
                 </div>
 
-                {/* Ações - sempre visíveis em mobile, hover em desktop */}
+                {/* Ações - dropdown menu limpo */}
                 {showActions && (
-                  <div className="flex gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  <div className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex-shrink-0">
                     {isCardExpense ? (
                       <span
                         className="text-[10px] px-2 py-1 rounded bg-primary/10 text-primary font-medium whitespace-nowrap"
@@ -199,39 +206,44 @@ export default function TransactionList({ transactions, limit, showActions = tru
                         Cartão
                       </span>
                     ) : (
-                      <>
-                        {tx.type === 'transfer' ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                           <button
-                            onClick={() => handleUndoTransfer(tx)}
-                            className="p-1 rounded hover:bg-warning/10 text-muted-foreground hover:text-warning transition-colors"
-                            title="Reverter transferência"
+                            className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                            title="Ações"
                           >
-                            <Undo2 className="h-4 w-4" />
+                            <MoreVertical className="h-4 w-4" />
                           </button>
-                        ) : (
-                          <button
-                            onClick={() => setMarking(tx)}
-                            className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-                            title="Marcar como transferência"
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onClick={() => setEditing(tx)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            <span>Editar</span>
+                          </DropdownMenuItem>
+
+                          {tx.type === 'transfer' ? (
+                            <DropdownMenuItem onClick={() => handleUndoTransfer(tx)}>
+                              <Undo2 className="h-4 w-4 mr-2 text-warning" />
+                              <span>Reverter Transferência</span>
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem onClick={() => setMarking(tx)}>
+                              <ArrowLeftRight className="h-4 w-4 mr-2" />
+                              <span>Marcar como Transferência</span>
+                            </DropdownMenuItem>
+                          )}
+
+                          <DropdownMenuSeparator />
+
+                          <DropdownMenuItem
+                            onClick={() => handleDelete(tx.id)}
+                            className="text-expense hover:text-expense hover:bg-expense/10"
                           >
-                            <ArrowLeftRight className="h-4 w-4" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setEditing(tx)}
-                          className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                          title="Editar"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(tx.id)}
-                          className="p-1 rounded hover:bg-expense/10 text-muted-foreground hover:text-expense transition-colors"
-                          title="Excluir"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </>
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            <span>Deletar</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
                 )}
