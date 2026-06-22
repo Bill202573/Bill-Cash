@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { FamilyScopeProvider } from '@/contexts/FamilyContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import { Layout } from '@/components/Layout';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useAuth } from '@/hooks/useAuth';
@@ -49,12 +50,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <FamilyScopeProvider>
-      <TooltipProvider>
-        <Toaster richColors position="top-right" />
-        <BrowserRouter>
-        <Routes>
+  <ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <FamilyScopeProvider>
+        <TooltipProvider>
+          <Toaster richColors position="top-right" />
+          <BrowserRouter>
+          <Routes>
           {/* Public routes */}
           <Route path="/login"  element={<Login />} />
           <Route path="/signup" element={<Signup />} />
@@ -160,10 +162,11 @@ const App = () => (
           {/* Fallback */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-    </FamilyScopeProvider>
-  </QueryClientProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+      </FamilyScopeProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;

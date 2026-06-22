@@ -4,9 +4,11 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ArrowLeftRight, CreditCard, Target,
   Lightbulb, Wallet, FileText, Bot, Settings, Menu, X, Tag,
+  Sun, Moon,
 } from 'lucide-react';
 import { ProfileMenu } from './ProfileMenu';
 import { ScopeSelector } from './ScopeSelector';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface LayoutProps { children: ReactNode }
 
@@ -27,6 +29,7 @@ const NAV = [
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -86,6 +89,13 @@ export function Layout({ children }: LayoutProps) {
           <span className="font-display font-bold">Bill Cash</span>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+            title={theme === 'dark' ? 'Mudar para claro' : 'Mudar para escuro'}
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </button>
           <div className="w-8 h-8 flex items-center justify-center">
             <ScopeSelector />
           </div>
