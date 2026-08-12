@@ -9,6 +9,7 @@ import { TransactionForm } from '@/components/TransactionForm';
 import { ImportModal } from '@/components/ImportModal';
 import { DeleteTransactionsModal } from '@/components/DeleteTransactionsModal';
 import { IncludeCardsToggle } from '@/components/IncludeCardsToggle';
+import { ReconciliationPanel } from '@/components/ReconciliationPanel';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useUnifiedTransactions } from '@/hooks/useUnifiedTransactions';
 import { useCreditCards } from '@/hooks/useCreditCards';
@@ -235,6 +236,11 @@ export default function Transactions() {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      {/* Reconciliation Panel */}
+      <div className="mb-6">
+        <ReconciliationPanel />
       </div>
 
       {isLoading ? (
