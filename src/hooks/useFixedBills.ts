@@ -260,17 +260,60 @@ export function useMarkBillPaid() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payment: Omit<FixedBillPayment, 'id' | 'created_at'>) => {
+      // Marca pagamento como pago
       const { data, error } = await supabase
         .from('fixed_bill_payments')
         .upsert([payment], { onConflict: 'bill_id,year_month' })
         .select()
         .single();
       if (error) throw error;
+
+      // Busca a bill para pegar os keywords
+      const { data: bill } = await supabase
+        .from('fixed_bills')
+        .select('keywords')
+        .eq('id', payment.bill_id)
+        .single();
+
+      // Se tem keywords, busca as transações daquele mês com esses keywords
+      if (bill?.keywords && bill.keywords.length > 0) {
+        const [year, month] = payment.year_month.split('-');
+        const monthPrefix = `${year}-${month}`;
+
+        // Busca transações que começam com aquele mês e contêm alguma keyword
+        let txQuery = supabase
+          .from('transactions')
+          .select('id')
+          .gte('date', `${monthPrefix}-01`)
+          .lte('date', `${monthPrefix}-31`);
+
+        // Monta filtro OR para qualquer keyword
+        const keywordFilters = bill.keywords
+          .map(k => `description.ilike.%${k}%`)
+          .join(',');
+
+        if (keywordFilters) {
+          txQuery = txQuery.or(keywordFilters);
+        }
+
+        const { data: transactions } = await txQuery;
+
+        // Marca todas essas transações como reconciliadas
+        if (transactions && transactions.length > 0) {
+          const txIds = transactions.map(t => t.id);
+          await supabase
+            .from('transactions')
+            .update({ reconciliation_status: 'paid' })
+            .in('id', txIds);
+        }
+      }
+
       return data as FixedBillPayment;
     },
     onSuccess: (_, vars) => {
       const year = parseInt(vars.year_month.slice(0, 4), 10);
       qc.invalidateQueries({ queryKey: ['fixed_bill_payments', year] });
+      qc.invalidateQueries({ queryKey: ['transactions'] });
     },
   });
 }
@@ -330,6 +373,44 @@ export function useMarkBillUnpaid() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ bill_id, year_month }: { bill_id: string; year_month: string }) => {
+      // Busca a bill para pegar os keywords
+      const { data: bill } = await supabase
+        .from('fixed_bills')
+        .select('keywords')
+        .eq('id', bill_id)
+        .single();
+
+      // Se tem keywords, limpa o reconciliation_status daquele mês
+      if (bill?.keywords && bill.keywords.length > 0) {
+        const [year, month] = year_month.split('-');
+        const monthPrefix = `${year}-${month}`;
+
+        let txQuery = supabase
+          .from('transactions')
+          .select('id')
+          .gte('date', `${monthPrefix}-01`)
+          .lte('date', `${monthPrefix}-31`);
+
+        const keywordFilters = bill.keywords
+          .map(k => `description.ilike.%${k}%`)
+          .join(',');
+
+        if (keywordFilters) {
+          txQuery = txQuery.or(keywordFilters);
+        }
+
+        const { data: transactions } = await txQuery;
+
+        if (transactions && transactions.length > 0) {
+          const txIds = transactions.map(t => t.id);
+          await supabase
+            .from('transactions')
+            .update({ reconciliation_status: null })
+            .in('id', txIds);
+        }
+      }
+
+      // Remove o pagamento
       const { error } = await supabase
         .from('fixed_bill_payments')
         .delete()
@@ -340,6 +421,7 @@ export function useMarkBillUnpaid() {
     onSuccess: (_, vars) => {
       const year = parseInt(vars.year_month.slice(0, 4), 10);
       qc.invalidateQueries({ queryKey: ['fixed_bill_payments', year] });
+      qc.invalidateQueries({ queryKey: ['transactions'] });
     },
   });
 }

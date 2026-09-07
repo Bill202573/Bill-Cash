@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FixedBillForm } from '@/components/FixedBillForm';
-import { ProtelReconciliationPanel } from '@/components/ProtelReconciliationPanel';
 import {
   useFixedBills, useFixedBillPayments,
   useMarkBillPaid, useMarkBillUnpaid, useDeleteFixedBill,
@@ -654,11 +653,6 @@ export default function FixedBills() {
           <p className="text-2xl font-display font-bold text-warning">{stats.pending}</p>
           <p className="text-xs text-muted-foreground mt-0.5">A vencer</p>
         </div>
-      </div>
-
-      {/* Protel Reconciliation */}
-      <div className="glass-card rounded-xl p-5 mb-4">
-        <ProtelReconciliationPanel />
       </div>
 
       {/* Monthly grid */}

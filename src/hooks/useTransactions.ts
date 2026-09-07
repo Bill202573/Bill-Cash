@@ -60,6 +60,7 @@ export function useTransactions() {
       let query = supabase
         .from('transactions')
         .select('*')
+        .is('reconciliation_status', null)  // Apenas transações NÃO reconciliadas
         .order('date', { ascending: false });
 
       // Filtro por scope
