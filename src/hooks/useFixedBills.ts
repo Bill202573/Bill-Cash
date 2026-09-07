@@ -288,10 +288,12 @@ export function useMarkBillPaid() {
           .lte('date', monthEnd);
 
         if (allTransactions && allTransactions.length > 0) {
-          // Usa keywords se tiver, senão usa o nome da bill
+          // Usa keywords se tiver, senão usa a primeira palavra do nome
+          // (ex: "Protel - Condominio Natura" → "Protel", nunca o nome inteiro,
+          // pois o nome completo raramente aparece na descrição real do extrato)
           const searchTerms = (bill.keywords && bill.keywords.length > 0)
             ? bill.keywords
-            : [bill.name];
+            : [bill.name.split(/[\s-]+/)[0]];
 
           // Filtra transações que contêm algum termo de busca
           const matchingTx = allTransactions.filter(tx =>
@@ -396,10 +398,10 @@ export function useMarkBillUnpaid() {
           .lte('date', monthEnd);
 
         if (allTransactions && allTransactions.length > 0) {
-          // Usa keywords se tiver, senão usa o nome da bill
+          // Usa keywords se tiver, senão usa a primeira palavra do nome
           const searchTerms = (bill.keywords && bill.keywords.length > 0)
             ? bill.keywords
-            : [bill.name];
+            : [bill.name.split(/[\s-]+/)[0]];
 
           // Filtra transações que contêm algum termo de busca
           const matchingTx = allTransactions.filter(tx =>
