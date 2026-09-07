@@ -268,43 +268,46 @@ export function useMarkBillPaid() {
         .single();
       if (error) throw error;
 
-      // Busca a bill para pegar os keywords
+      // Busca a bill para pegar keywords e nome
       const { data: bill } = await supabase
         .from('fixed_bills')
-        .select('keywords')
+        .select('name, keywords')
         .eq('id', payment.bill_id)
         .single();
 
-      // Se tem keywords, busca as transações daquele mês com esses keywords
-      if (bill?.keywords && bill.keywords.length > 0) {
+      if (bill) {
         const [year, month] = payment.year_month.split('-');
-        const monthPrefix = `${year}-${month}`;
+        const monthStart = `${year}-${month}-01`;
+        const monthEnd = `${year}-${month}-31`;
 
-        // Busca transações que começam com aquele mês e contêm alguma keyword
-        let txQuery = supabase
+        // Busca todas as transações do mês
+        const { data: allTransactions } = await supabase
           .from('transactions')
-          .select('id')
-          .gte('date', `${monthPrefix}-01`)
-          .lte('date', `${monthPrefix}-31`);
+          .select('id, description')
+          .gte('date', monthStart)
+          .lte('date', monthEnd);
 
-        // Monta filtro OR para qualquer keyword
-        const keywordFilters = bill.keywords
-          .map(k => `description.ilike.%${k}%`)
-          .join(',');
+        if (allTransactions && allTransactions.length > 0) {
+          // Usa keywords se tiver, senão usa o nome da bill
+          const searchTerms = (bill.keywords && bill.keywords.length > 0)
+            ? bill.keywords
+            : [bill.name];
 
-        if (keywordFilters) {
-          txQuery = txQuery.or(keywordFilters);
-        }
+          // Filtra transações que contêm algum termo de busca
+          const matchingTx = allTransactions.filter(tx =>
+            searchTerms.some(term =>
+              tx.description.toUpperCase().includes(term.toUpperCase())
+            )
+          );
 
-        const { data: transactions } = await txQuery;
-
-        // Marca todas essas transações como reconciliadas
-        if (transactions && transactions.length > 0) {
-          const txIds = transactions.map(t => t.id);
-          await supabase
-            .from('transactions')
-            .update({ reconciliation_status: 'paid' })
-            .in('id', txIds);
+          // Marca todas essas transações como reconciliadas
+          if (matchingTx.length > 0) {
+            const txIds = matchingTx.map(t => t.id);
+            await supabase
+              .from('transactions')
+              .update({ reconciliation_status: 'paid' })
+              .in('id', txIds);
+          }
         }
       }
 
@@ -373,40 +376,45 @@ export function useMarkBillUnpaid() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ bill_id, year_month }: { bill_id: string; year_month: string }) => {
-      // Busca a bill para pegar os keywords
+      // Busca a bill para pegar keywords e nome
       const { data: bill } = await supabase
         .from('fixed_bills')
-        .select('keywords')
+        .select('name, keywords')
         .eq('id', bill_id)
         .single();
 
-      // Se tem keywords, limpa o reconciliation_status daquele mês
-      if (bill?.keywords && bill.keywords.length > 0) {
+      if (bill) {
         const [year, month] = year_month.split('-');
-        const monthPrefix = `${year}-${month}`;
+        const monthStart = `${year}-${month}-01`;
+        const monthEnd = `${year}-${month}-31`;
 
-        let txQuery = supabase
+        // Busca todas as transações do mês
+        const { data: allTransactions } = await supabase
           .from('transactions')
-          .select('id')
-          .gte('date', `${monthPrefix}-01`)
-          .lte('date', `${monthPrefix}-31`);
+          .select('id, description')
+          .gte('date', monthStart)
+          .lte('date', monthEnd);
 
-        const keywordFilters = bill.keywords
-          .map(k => `description.ilike.%${k}%`)
-          .join(',');
+        if (allTransactions && allTransactions.length > 0) {
+          // Usa keywords se tiver, senão usa o nome da bill
+          const searchTerms = (bill.keywords && bill.keywords.length > 0)
+            ? bill.keywords
+            : [bill.name];
 
-        if (keywordFilters) {
-          txQuery = txQuery.or(keywordFilters);
-        }
+          // Filtra transações que contêm algum termo de busca
+          const matchingTx = allTransactions.filter(tx =>
+            searchTerms.some(term =>
+              tx.description.toUpperCase().includes(term.toUpperCase())
+            )
+          );
 
-        const { data: transactions } = await txQuery;
-
-        if (transactions && transactions.length > 0) {
-          const txIds = transactions.map(t => t.id);
-          await supabase
-            .from('transactions')
-            .update({ reconciliation_status: null })
-            .in('id', txIds);
+          if (matchingTx.length > 0) {
+            const txIds = matchingTx.map(t => t.id);
+            await supabase
+              .from('transactions')
+              .update({ reconciliation_status: null })
+              .in('id', txIds);
+          }
         }
       }
 
