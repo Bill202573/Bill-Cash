@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useFamily } from '@/hooks/useFamily';
+import { useFamilyScope } from '@/contexts/FamilyContext';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -27,24 +27,30 @@ interface ReconciliationGroup {
 
 export function ReconciliationPanel() {
   const { user } = useAuth();
-  const { scope, getFilterUserId } = useFamily();
+  const { getFilterUserId } = useFamilyScope();
   const qc = useQueryClient();
   const [selected, setSelected] = useState<string[]>([]);
   const [showPreview, setShowPreview] = useState(false);
 
   const filteredUserId = getFilterUserId();
 
-  // Puxar todas as transações do período
+  // Puxar todas as transações dos últimos 12 meses
   const { data: allTransactions = [], isLoading } = useQuery({
     queryKey: ['transactions_reconciliation', filteredUserId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+      let query = supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', filteredUserId)
-        .gte('date', '2026-01-01')
-        .lte('date', '2026-07-31')
+        .gte('date', oneYearAgo.toISOString().slice(0, 10))
         .order('date', { ascending: true });
+
+      // filteredUserId é null no modo "família" (mostra de todos os membros)
+      if (filteredUserId) query = query.eq('user_id', filteredUserId);
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data as TransactionWithReconciliation[];
