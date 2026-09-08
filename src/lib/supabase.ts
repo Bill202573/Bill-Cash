@@ -52,6 +52,8 @@ export interface CardBill {
   total_amount:   number;          // soma das despesas confirmadas
   paid_amount:    number;          // valor efetivamente pago
   payment_tx_id?: string | null;   // FK -> transactions.id (quando paga)
+  /** 'linked' = vinculada a uma transação real do extrato; 'created' = transação criada pelo app */
+  payment_source?: 'linked' | 'created' | null;
   status:         CardBillStatus;
   notes?:         string;
   created_at?:    string;

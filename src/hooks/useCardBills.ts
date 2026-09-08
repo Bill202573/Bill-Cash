@@ -164,9 +164,10 @@ export function useReconcileCardBill() {
       const { data: updated, error: e2 } = await supabase
         .from('card_bills')
         .update({
-          status:        'reconciled',
-          paid_amount:   paidAmount,
-          payment_tx_id: tx.id,
+          status:         'reconciled',
+          paid_amount:    paidAmount,
+          payment_tx_id:  tx.id,
+          payment_source: 'created',
         })
         .eq('id', bill.id)
         .select()
@@ -182,23 +183,81 @@ export function useReconcileCardBill() {
   });
 }
 
-/** Reverte a conciliação: deleta a transação de pagamento e volta status para 'closed' */
+/**
+ * Reverte a conciliação. Se a transação de pagamento foi CRIADA pelo app
+ * (useReconcileCardBill), ela é apagada. Se foi VINCULADA a uma transação
+ * já existente no extrato (useLinkCardBillPayment), a transação não é
+ * apagada — apenas volta para a categoria original e desvincula.
+ */
 export function useUnreconcileCardBill() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (bill: CardBill) => {
       if (bill.payment_tx_id) {
-        await supabase.from('transactions').delete().eq('id', bill.payment_tx_id);
+        if (bill.payment_source === 'linked') {
+          // Transação real do extrato: só desvincula, não apaga
+          await supabase
+            .from('transactions')
+            .update({ category: 'Outros' })
+            .eq('id', bill.payment_tx_id);
+        } else {
+          await supabase.from('transactions').delete().eq('id', bill.payment_tx_id);
+        }
       }
       const { error } = await supabase
         .from('card_bills')
         .update({
-          status:        'closed',
-          paid_amount:   0,
-          payment_tx_id: null,
+          status:          'closed',
+          paid_amount:     0,
+          payment_tx_id:   null,
+          payment_source:  null,
         })
         .eq('id', bill.id);
       if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['card_bills'] });
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+    },
+  });
+}
+
+/**
+ * Concilia a fatura VINCULANDO a uma transação que já existe no extrato
+ * (ex: importada do banco) — em vez de criar uma nova. Evita duplicidade.
+ * Apenas recategoriza a transação para "Pagamento Cartão" e linka na fatura.
+ */
+export function useLinkCardBillPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      bill,
+      transactionId,
+      paidAmount,
+    }: {
+      bill:          CardBill;
+      transactionId: string;
+      paidAmount:    number;
+    }) => {
+      const { error: e1 } = await supabase
+        .from('transactions')
+        .update({ category: 'Pagamento Cartão' })
+        .eq('id', transactionId);
+      if (e1) throw e1;
+
+      const { data, error: e2 } = await supabase
+        .from('card_bills')
+        .update({
+          status:         'reconciled',
+          paid_amount:    paidAmount,
+          payment_tx_id:  transactionId,
+          payment_source: 'linked',
+        })
+        .eq('id', bill.id)
+        .select()
+        .single();
+      if (e2) throw e2;
+      return data as CardBill;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['card_bills'] });
