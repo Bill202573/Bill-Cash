@@ -3,6 +3,7 @@ import { Plus, Check, X, ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem,
@@ -683,6 +684,22 @@ export function TransactionForm({ open, onClose, transaction }: Props) {
                     className="mt-1"
                   />
                 </div>
+              </div>
+
+              {/* Observação */}
+              <div>
+                <Label htmlFor="notes">
+                  Observação
+                  <span className="text-muted-foreground text-xs ml-1">(opcional)</span>
+                </Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Ex: parcela 3/6, referente ao conserto do carro..."
+                  value={form.notes}
+                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                  className="mt-1"
+                  rows={2}
+                />
               </div>
 
               {/* Botões */}

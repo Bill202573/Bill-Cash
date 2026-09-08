@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Pencil, Trash2, Undo2, CreditCard, MoreVertical } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Pencil, Trash2, Undo2, CreditCard, MoreVertical, StickyNote } from 'lucide-react';
 import { useDeleteTransaction } from '@/hooks/useTransactions';
 import { TransactionForm } from './TransactionForm';
 import { MarkAsTransferModal } from './MarkAsTransferModal';
@@ -188,10 +188,18 @@ export default function TransactionList({ transactions, limit, showActions = tru
                   )}
 
                   {/* Linha 3: categoria + data */}
-                  <p className="text-xs text-muted-foreground">
-                    {tx.category}
-                    {tx.subcategory ? ` › ${tx.subcategory}` : ''}
-                    {' · '}{fmtDate(tx.date)} {' · '}{tx.user_label}
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <span className="truncate">
+                      {tx.category}
+                      {tx.subcategory ? ` › ${tx.subcategory}` : ''}
+                      {' · '}{fmtDate(tx.date)} {' · '}{tx.user_label}
+                    </span>
+                    {tx.notes && (
+                      <StickyNote
+                        className="h-3 w-3 text-primary flex-shrink-0"
+                        title={tx.notes}
+                      />
+                    )}
                   </p>
                 </div>
 
