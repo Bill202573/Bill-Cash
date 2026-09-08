@@ -193,20 +193,46 @@ function parseDate(raw: string): string | null {
   return null;
 }
 
+const HEADER_DATE_HINTS   = ['data', 'date', 'dt', 'lancamento', 'lançamento'];
+const HEADER_AMOUNT_HINTS = ['valor', 'amount', 'value', 'montante', 'credito', 'debito', 'crédito', 'débito'];
+
+/**
+ * Alguns bancos (ex: Inter PJ) prefixam o CSV com linhas de metadados
+ * ("Conta;...", "Período;...", "Saldo;...") antes da linha real de
+ * cabeçalho. Escaneia as primeiras linhas procurando a que parece um
+ * cabeçalho de verdade (tem coluna de data E de valor), testando cada
+ * separador candidato — em vez de assumir que a linha 0 é o cabeçalho.
+ */
+function findHeaderLine(lines: string[]): { index: number; sep: string } | null {
+  const candidates = [',', ';', '\t'];
+  const maxScan = Math.min(lines.length, 20);
+  for (let i = 0; i < maxScan; i++) {
+    for (const sep of candidates) {
+      const cols = parseLine(lines[i], sep);
+      if (cols.length < 2) continue;
+      const norm = cols.map(c => c.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''));
+      const hasDate   = norm.some(h => HEADER_DATE_HINTS.some(k => h.includes(k)));
+      const hasAmount = norm.some(h => HEADER_AMOUNT_HINTS.some(k => h.includes(k)));
+      if (hasDate && hasAmount) return { index: i, sep };
+    }
+  }
+  return null;
+}
+
 export function parseCSV(content: string, account = ''): ParsedRow[] {
   const lines = content.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return [];
 
-  const sep = detectSeparator(lines[0]);
-  const header = parseLine(lines[0], sep).map(h => h.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''));
+  const found = findHeaderLine(lines) ?? { index: 0, sep: detectSeparator(lines[0]) };
+  const { index: headerIdx, sep } = found;
+  const header = parseLine(lines[headerIdx], sep).map(h => h.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''));
 
   // Detect bank format by header
   const isNubankCard = header.some(h => h.includes('title') || h.includes('category'));
-  const isNubankAccount = header.some(h => h.includes('descricao') || h.includes('lancamento'));
 
   const rows: ParsedRow[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = headerIdx + 1; i < lines.length; i++) {
     const cols = parseLine(lines[i], sep);
     if (cols.length < 2) continue;
 
@@ -247,6 +273,9 @@ export function parseCSV(content: string, account = ''): ParsedRow[] {
         const di = findCol(colMap.date);
         const desi = findCol(colMap.desc);
         const ai = findCol(colMap.amount);
+        // Coluna extra de "histórico" (tipo de lançamento) quando existe separada
+        // da descrição (ex: Inter: "Pix enviado" + "William Andrade Nogueira")
+        const histi = header.findIndex(h => h.includes('historico'));
 
         if (di < 0 || desi < 0 || ai < 0) {
           // Last resort: assume first col = date, second = desc, last = amount
@@ -254,10 +283,13 @@ export function parseCSV(content: string, account = ''): ParsedRow[] {
           description = cols[1] ?? '';
           amount = Math.abs(parseAmount(cols[cols.length - 1] ?? '0'));
           const rawAmt = parseAmount(cols[cols.length - 1] ?? '0');
-          type = rawAmt >= 0 ? 'expense' : 'income';
+          // Extrato de conta: positivo = entrada de dinheiro (receita), negativo = saída (despesa)
+          type = rawAmt >= 0 ? 'income' : 'expense';
         } else {
           date = parseDate(cols[di] ?? '') ?? '';
-          description = cols[desi] ?? '';
+          description = (histi >= 0 && histi !== desi && cols[histi]?.trim())
+            ? `${cols[histi].trim()} - ${cols[desi]}`
+            : cols[desi] ?? '';
           const rawAmt = parseAmount(cols[ai] ?? '0');
           amount = Math.abs(rawAmt);
 
@@ -276,7 +308,8 @@ export function parseCSV(content: string, account = ''): ParsedRow[] {
               type = 'expense';
             }
           } else {
-            type = rawAmt >= 0 ? 'expense' : 'income';
+            // Extrato de conta: positivo = entrada de dinheiro (receita), negativo = saída (despesa)
+            type = rawAmt >= 0 ? 'income' : 'expense';
           }
         }
       }
