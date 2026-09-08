@@ -57,10 +57,12 @@ export function useTransactions() {
     queryFn: async () => {
       if (!user?.id) return [];
 
+      // Retorna TODAS as transações — reconciliation_status é só um marcador de
+      // bookkeeping (já vinculada a uma conta fixa/fatura), não indica se o
+      // dinheiro realmente moveu. Saldo de conta e relatórios precisam de todas.
       let query = supabase
         .from('transactions')
         .select('*')
-        .is('reconciliation_status', null)  // Apenas transações NÃO reconciliadas
         .order('date', { ascending: false });
 
       // Filtro por scope
@@ -122,53 +124,5 @@ export function useDeleteTransaction() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['transactions'] }),
-  });
-}
-
-// Calcula saldo ignorando transações reconciliadas
-export function useTransactionsSummary() {
-  const { scope } = useFamilyScope();
-  const { user } = useAuth();
-  const { data: family } = useFamily();
-
-  return useQuery({
-    queryKey: ['transactions_summary', scope, user?.id, family?.members],
-    queryFn: async () => {
-      if (!user?.id) return { income: 0, expense: 0, transfer: 0, balance: 0 };
-
-      let query = supabase
-        .from('transactions')
-        .select('type, amount')
-        .or('reconciliation_status.is.null');  // Apenas transações não reconciliadas
-
-      // Filtro por scope
-      if (scope === 'personal') {
-        query = query.eq('user_id', user.id);
-      } else if (scope === 'family' && family?.members) {
-        const memberIds = family.members.map(m => m.user_id);
-        query = query.in('user_id', memberIds);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const stats = {
-        income: 0,
-        expense: 0,
-        transfer: 0,
-      };
-
-      (data ?? []).forEach(tx => {
-        if (tx.type === 'income') stats.income += tx.amount;
-        else if (tx.type === 'expense') stats.expense += tx.amount;
-        else if (tx.type === 'transfer') stats.transfer += tx.amount;
-      });
-
-      return {
-        ...stats,
-        balance: stats.income - stats.expense + stats.transfer,
-      };
-    },
-    enabled: !!user?.id,
   });
 }

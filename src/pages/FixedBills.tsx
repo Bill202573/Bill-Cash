@@ -142,6 +142,7 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
     return allTransactions
       .filter(tx => {
         if (tx.type !== 'expense') return false;
+        if (tx.reconciliation_status) return false; // já vinculada a outra conta/fatura
         const desc = (tx.description ?? '').toLowerCase();
         const cat  = (tx.category    ?? '').toLowerCase();
         return desc.includes(term) || cat.includes(term);

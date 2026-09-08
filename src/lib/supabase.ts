@@ -22,6 +22,11 @@ export interface Transaction {
   user_id?:     string;       // UUID do Supabase Auth
   notes?:       string;
   created_at?:  string;
+  /** Marcador de bookkeeping: já vinculada a uma conta fixa ('paid') ou é um
+   *  par de transferência circular sem efeito econômico real ('circular').
+   *  Não afeta saldo de conta — só é usado para não reaparecer em buscas de
+   *  conciliação e para excluir 'circular' dos relatórios por categoria. */
+  reconciliation_status?: string | null;
 }
 
 export interface CreditCard {

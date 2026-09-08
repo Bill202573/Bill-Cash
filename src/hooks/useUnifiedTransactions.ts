@@ -58,10 +58,18 @@ export function useUnifiedTransactions(): {
 } {
   const [includeCardExpenses, setIncludeCardExpenses] = useIncludeCardExpensesFlag();
 
-  const { data: rawTransactions = [], isLoading: l1 } = useTransactions();
+  const { data: allTransactions = [], isLoading: l1 } = useTransactions();
   const { data: cardExpenses    = [], isLoading: l2 } = useCardExpenses();
   const { data: cards           = [], isLoading: l3 } = useCreditCards();
   const { data: bills           = [], isLoading: l4 } = useCardBills();
+
+  // 'circular' = par de transferência sem efeito econômico real (ex: pagamento
+  // errado + reembolso) — exclui dos relatórios para não distorcer receita/despesa.
+  // 'paid' (fixed bill / fatura já conciliada) conta normalmente: é despesa real.
+  const rawTransactions = useMemo(
+    () => allTransactions.filter(t => t.reconciliation_status !== 'circular'),
+    [allTransactions],
+  );
 
   const transactions = useMemo(
     () => mergeCardExpensesAsTransactions(rawTransactions, cardExpenses, {

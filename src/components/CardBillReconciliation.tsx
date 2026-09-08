@@ -47,6 +47,7 @@ export function CardBillReconciliation({ open, onClose, bill, card }: Props) {
     const term = searchTerm.trim().toLowerCase();
     return allTransactions
       .filter(t => t.type === 'expense')
+      .filter(t => !t.reconciliation_status && t.category !== 'Pagamento Cartão')
       .filter(t => t.description.toLowerCase().includes(term))
       .slice(0, 15);
   }, [searchTerm, allTransactions]);
