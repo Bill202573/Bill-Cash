@@ -112,13 +112,15 @@ export function ReconciliationPanel() {
     });
   }
 
-  // Grupo 2: Transações suspeitas (valores altos, nomes estranhos)
+  // Grupo 2: Transações suspeitas (valores altos fora do esperado)
+  // Moradia fica de fora do critério de "valor alto": aluguel/condomínio são
+  // despesas grandes e recorrentes por natureza, não anomalias a investigar.
   const suspicious = allTransactions.filter(
     tx =>
       !tx.reconciliation_status && // Pular se já reconciliada
+      tx.category !== 'Moradia' &&
       ((tx.amount > 3000 && tx.type === 'expense') || // Despesas maiores que 3k
-        (tx.description.toLowerCase().includes('cristina') ||
-          tx.description.toLowerCase().includes('pessoal'))) // Nomes suspeitos
+        tx.description.toLowerCase().includes('pessoal')) // Nome suspeito
   );
 
   if (suspicious.length > 0) {
