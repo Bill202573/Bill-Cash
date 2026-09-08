@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAddDebt, useUpdateDebt } from '@/hooks/useDebts';
 import { DEBT_TYPE_LABELS, type Debt, type DebtType } from '@/lib/supabase';
+import { parseMoney } from '@/lib/financial';
 import { toast } from 'sonner';
 
 interface Props {
@@ -32,26 +33,27 @@ export function DebtForm({ open, onClose, debt }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const balanceNum = parseMoney(form.balance);
     if (!form.name.trim()) { toast.error('Informe o nome da dívida'); return; }
-    if (!form.balance || isNaN(Number(form.balance))) { toast.error('Informe o saldo devedor'); return; }
+    if (!balanceNum) { toast.error('Informe o saldo devedor'); return; }
     // Taxa de juros é opcional quando há data de origem — nesse caso a correção é feita pela poupança
-    if (!form.origin_date && (!form.interest_rate || isNaN(Number(form.interest_rate)))) {
+    if (!form.origin_date && !parseMoney(form.interest_rate)) {
       toast.error('Informe a taxa de juros'); return;
     }
     try {
       const payload: Record<string, unknown> = {
         name: form.name,
         type: form.type,
-        balance: parseFloat(form.balance),
-        interest_rate: parseFloat(form.interest_rate || '0'),
-        minimum_payment: parseFloat(form.minimum_payment || '0'),
+        balance: balanceNum,
+        interest_rate: parseMoney(form.interest_rate),
+        minimum_payment: parseMoney(form.minimum_payment),
         due_day: form.due_day ? parseInt(form.due_day) : undefined,
         origin_date: form.origin_date || null,
       };
       // Só define o valor de origem quando a dívida é nova ou a data de origem mudou —
       // preserva o valor original quando só o saldo atual está sendo editado depois.
       if (!isEditing || form.origin_date !== (debt?.origin_date ?? '')) {
-        payload.origin_amount = form.origin_date ? parseFloat(form.balance) : null;
+        payload.origin_amount = form.origin_date ? balanceNum : null;
       }
       if (isEditing) {
         await update.mutateAsync({ id: debt.id, ...payload });
@@ -101,7 +103,7 @@ export function DebtForm({ open, onClose, debt }: Props) {
             <div>
               <Label>Saldo Devedor (R$)</Label>
               <Input
-                type="number" step="0.01" min="0" placeholder="0,00"
+                type="text" inputMode="decimal" placeholder="Ex: 31.000,00"
                 value={form.balance}
                 onChange={e => setForm(f => ({ ...f, balance: e.target.value }))}
                 className="mt-1"
@@ -110,7 +112,7 @@ export function DebtForm({ open, onClose, debt }: Props) {
             <div>
               <Label>Juros ao mês (%)</Label>
               <Input
-                type="number" step="0.01" min="0" placeholder="Ex: 12.5"
+                type="text" inputMode="decimal" placeholder="Ex: 12,5"
                 value={form.interest_rate}
                 onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value }))}
                 className="mt-1"
@@ -122,7 +124,7 @@ export function DebtForm({ open, onClose, debt }: Props) {
             <div>
               <Label>Parcela Mínima (R$)</Label>
               <Input
-                type="number" step="0.01" min="0" placeholder="0,00"
+                type="text" inputMode="decimal" placeholder="0,00"
                 value={form.minimum_payment}
                 onChange={e => setForm(f => ({ ...f, minimum_payment: e.target.value }))}
                 className="mt-1"
