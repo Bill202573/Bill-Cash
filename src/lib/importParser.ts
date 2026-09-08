@@ -52,6 +52,24 @@ export function detectCategory(description: string): string {
   return 'Outros';
 }
 
+// Regras específicas (contrapartes recorrentes conhecidas) — checadas antes das
+// genéricas, e com subcategoria, para lançamentos que a categorização genérica
+// não consegue distinguir (ex: "Protel" é um condomínio administrado por
+// terceiros, sem palavra-chave genérica de "condomínio" na descrição real).
+const PERSONAL_RULES: Array<{ patterns: string[]; category: string; subcategory?: string }> = [
+  { patterns: ['protel'], category: 'Natura Recreio', subcategory: 'Condomínio' },
+];
+
+export function detectCategoryDetailed(description: string): { category: string; subcategory?: string } {
+  const lower = description.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  for (const rule of PERSONAL_RULES) {
+    if (rule.patterns.some(p => lower.includes(p.normalize('NFD').replace(/[̀-ͯ]/g, '')))) {
+      return { category: rule.category, subcategory: rule.subcategory };
+    }
+  }
+  return { category: detectCategory(description) };
+}
+
 // Detecta se é potencialmente uma transferência interna
 export function isLikelyInternalTransfer(description: string): boolean {
   const lower = description.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -141,11 +159,13 @@ export function parseOFX(content: string, account = ''): ParsedRow[] {
     const incomeTypes = ['CREDIT', 'DEP', 'INT', 'DIV', 'DIRECTDEP', 'OTHER'];
     const type = trnamt > 0 || incomeTypes.includes(trntype) ? 'income' : 'expense';
 
+    const { category, subcategory } = detectCategoryDetailed(memo);
     rows.push({
       description: memo,
       amount,
       type,
-      category: detectCategory(memo),
+      category,
+      subcategory,
       date: parseOFXDate(dtposted),
       account,
       user: 'Você',
@@ -316,11 +336,13 @@ export function parseCSV(content: string, account = ''): ParsedRow[] {
 
       if (!date || !description || isNaN(amount) || amount === 0) continue;
 
+      const { category, subcategory } = detectCategoryDetailed(description);
       rows.push({
         description: description.trim(),
         amount,
         type,
-        category: detectCategory(description),
+        category,
+        subcategory,
         date,
         account,
         user: 'Você',

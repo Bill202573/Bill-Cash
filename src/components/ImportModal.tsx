@@ -60,12 +60,27 @@ export function ImportModal({ open, onClose }: Props) {
         toast.error('Nenhuma transação encontrada no arquivo. Verifique o formato.');
         return;
       }
-      // Check for duplicates against existing transactions
-      const dupKey = (r: { description: string; amount: number; date: string; account?: string }) =>
-        `${r.description.trim().toLowerCase()}|${r.amount}|${r.date}`;
-      const existingKeys = new Set(existingTxs.map(dupKey));
+      // Detecta duplicatas por valor + tipo dentro de uma janela de dias — não exige
+      // descrição idêntica, pois a mesma despesa pode já existir com um nome diferente
+      // (ex: lançada manualmente como "Protel" e reimportada como "Transferência
+      // enviada pelo Pix - Protel Administracao..." no mesmo valor e data/dia próximo).
+      const DUP_WINDOW_DAYS = 3;
+      const toDays = (d: string) => new Date(d + 'T12:00:00').getTime() / 86400000;
+      const byAmountType = new Map<string, number[]>();
+      for (const t of existingTxs) {
+        const key = `${t.amount}|${t.type}`;
+        const arr = byAmountType.get(key) ?? [];
+        arr.push(toDays(t.date));
+        byAmountType.set(key, arr);
+      }
+      const isDuplicate = (r: { amount: number; type: string; date: string }) => {
+        const candidates = byAmountType.get(`${r.amount}|${r.type}`);
+        if (!candidates) return false;
+        const rDay = toDays(r.date);
+        return candidates.some(d => Math.abs(d - rDay) <= DUP_WINDOW_DAYS);
+      };
       setRows(parsed.map(r => {
-        const isDup = existingKeys.has(dupKey(r));
+        const isDup = isDuplicate(r);
         return { ...r, selected: !isDup, _isDuplicate: isDup };
       }));
       setStep('preview');

@@ -54,7 +54,7 @@ export function CardBillReconciliation({ open, onClose, bill, card }: Props) {
 
   const handleLink = async (tx: { id: string; amount: number }) => {
     try {
-      await linkPayment.mutateAsync({ bill, transactionId: tx.id, paidAmount: tx.amount });
+      await linkPayment.mutateAsync({ bill, transactionId: tx.id, paidAmount: tx.amount, cardName: card.name });
       toast.success('Fatura conciliada com a transação real do extrato!');
       onClose();
     } catch (e: any) {

@@ -195,10 +195,20 @@ export function useUnreconcileCardBill() {
     mutationFn: async (bill: CardBill) => {
       if (bill.payment_tx_id) {
         if (bill.payment_source === 'linked') {
-          // Transação real do extrato: só desvincula, não apaga
+          // Transação real do extrato: só desvincula e restaura a descrição
+          // original (removendo o prefixo "Pagamento Fatura ... — " que
+          // useLinkCardBillPayment adicionou), sem apagar a transação.
+          const { data: tx } = await supabase
+            .from('transactions')
+            .select('description')
+            .eq('id', bill.payment_tx_id)
+            .single();
+          const restoredDescription = tx?.description?.includes(' — ')
+            ? tx.description.split(' — ').slice(1).join(' — ')
+            : tx?.description;
           await supabase
             .from('transactions')
-            .update({ category: 'Outros' })
+            .update({ category: 'Outros', description: restoredDescription })
             .eq('id', bill.payment_tx_id);
         } else {
           await supabase.from('transactions').delete().eq('id', bill.payment_tx_id);
@@ -227,6 +237,15 @@ export function useUnreconcileCardBill() {
  * (ex: importada do banco) — em vez de criar uma nova. Evita duplicidade.
  * Apenas recategoriza a transação para "Pagamento Cartão" e linka na fatura.
  */
+/** Prefixo usado para renomear a transação vinculada — reconhecível e reversível */
+function billPaymentPrefix(cardName: string, monthRef: string): string {
+  const [y, m] = monthRef.split('-');
+  const label = new Date(Number(y), Number(m) - 1, 2)
+    .toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
+    .replace('.', '');
+  return `Pagamento Fatura ${cardName} ${label}`;
+}
+
 export function useLinkCardBillPayment() {
   const qc = useQueryClient();
   return useMutation({
@@ -234,14 +253,28 @@ export function useLinkCardBillPayment() {
       bill,
       transactionId,
       paidAmount,
+      cardName,
     }: {
       bill:          CardBill;
       transactionId: string;
       paidAmount:    number;
+      cardName:      string;
     }) => {
+      const { data: tx } = await supabase
+        .from('transactions')
+        .select('description')
+        .eq('id', transactionId)
+        .single();
+
+      // Renomeia com um padrão reconhecível, mantendo a descrição original do
+      // banco depois de " — " para não perder o rastro (e permitir reverter).
+      const newDescription = tx?.description
+        ? `${billPaymentPrefix(cardName, bill.month_ref)} — ${tx.description}`
+        : billPaymentPrefix(cardName, bill.month_ref);
+
       const { error: e1 } = await supabase
         .from('transactions')
-        .update({ category: 'Pagamento Cartão' })
+        .update({ category: 'Pagamento Cartão', description: newDescription })
         .eq('id', transactionId);
       if (e1) throw e1;
 
