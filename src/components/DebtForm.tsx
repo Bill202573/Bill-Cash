@@ -22,6 +22,7 @@ export function DebtForm({ open, onClose, debt }: Props) {
     interest_rate: debt?.interest_rate?.toString() ?? '',
     minimum_payment: debt?.minimum_payment?.toString() ?? '',
     due_day: debt?.due_day?.toString() ?? '',
+    origin_date: debt?.origin_date ?? '',
   });
 
   const add = useAddDebt();
@@ -33,16 +34,25 @@ export function DebtForm({ open, onClose, debt }: Props) {
     e.preventDefault();
     if (!form.name.trim()) { toast.error('Informe o nome da dívida'); return; }
     if (!form.balance || isNaN(Number(form.balance))) { toast.error('Informe o saldo devedor'); return; }
-    if (!form.interest_rate || isNaN(Number(form.interest_rate))) { toast.error('Informe a taxa de juros'); return; }
+    // Taxa de juros é opcional quando há data de origem — nesse caso a correção é feita pela poupança
+    if (!form.origin_date && (!form.interest_rate || isNaN(Number(form.interest_rate)))) {
+      toast.error('Informe a taxa de juros'); return;
+    }
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         name: form.name,
         type: form.type,
         balance: parseFloat(form.balance),
-        interest_rate: parseFloat(form.interest_rate),
+        interest_rate: parseFloat(form.interest_rate || '0'),
         minimum_payment: parseFloat(form.minimum_payment || '0'),
         due_day: form.due_day ? parseInt(form.due_day) : undefined,
+        origin_date: form.origin_date || null,
       };
+      // Só define o valor de origem quando a dívida é nova ou a data de origem mudou —
+      // preserva o valor original quando só o saldo atual está sendo editado depois.
+      if (!isEditing || form.origin_date !== (debt?.origin_date ?? '')) {
+        payload.origin_amount = form.origin_date ? parseFloat(form.balance) : null;
+      }
       if (isEditing) {
         await update.mutateAsync({ id: debt.id, ...payload });
         toast.success('Dívida atualizada');
@@ -127,6 +137,19 @@ export function DebtForm({ open, onClose, debt }: Props) {
                 className="mt-1"
               />
             </div>
+          </div>
+
+          <div>
+            <Label>Data em que a dívida foi contraída (opcional)</Label>
+            <Input
+              type="date"
+              value={form.origin_date}
+              onChange={e => setForm(f => ({ ...f, origin_date: e.target.value }))}
+              className="mt-1"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Preencha para poder corrigir o saldo pela poupança depois (ex: dívida antiga sem pagamentos).
+            </p>
           </div>
 
           <div className="bg-secondary/40 rounded-lg p-3 text-xs text-muted-foreground">

@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, TrendingDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, TrendingDown, PiggyBank, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DebtForm } from '@/components/DebtForm';
-import { useDebts, useDeleteDebt } from '@/hooks/useDebts';
+import { useDebts, useDeleteDebt, useUpdateDebt } from '@/hooks/useDebts';
 import { compareMethods } from '@/lib/debtPlanner';
+import { calculateSavingsCorrection } from '@/lib/savingsIndex';
 import { DEBT_TYPE_LABELS, type Debt } from '@/lib/supabase';
 import { fmt } from '@/lib/financial';
 import { toast } from 'sonner';
@@ -17,9 +18,33 @@ export default function Debts() {
 
   const { data: debts = [], isLoading } = useDebts();
   const del = useDeleteDebt();
+  const update = useUpdateDebt();
+  const [correctingId, setCorrectingId] = useState<string | null>(null);
 
   const extra = parseFloat(extraPayment) || 0;
   const plans = useMemo(() => compareMethods(debts, extra), [debts, extra]);
+
+  const handleCorrectBySavings = async (debt: Debt) => {
+    if (!debt.origin_date) return;
+    setCorrectingId(debt.id);
+    try {
+      const originAmount = debt.origin_amount ?? debt.balance;
+      const result = await calculateSavingsCorrection(originAmount, debt.origin_date);
+      await update.mutateAsync({
+        id: debt.id,
+        corrected_balance: result.correctedBalance,
+        corrected_at: new Date().toISOString(),
+        correction_index: 'poupanca',
+      });
+      toast.success(
+        `Corrigido: ${fmt(originAmount)} → ${fmt(result.correctedBalance)} (${result.monthsApplied} meses, +${result.totalYieldPercent.toFixed(1)}%)`
+      );
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Erro ao consultar a poupança');
+    } finally {
+      setCorrectingId(null);
+    }
+  };
 
   const totalDebt = debts.reduce((s, d) => s + d.balance, 0);
   const totalMinimum = debts.reduce((s, d) => s + d.minimum_payment, 0);
@@ -99,9 +124,30 @@ export default function Debts() {
                       {debt.due_day ? ` · Vence dia ${debt.due_day}` : ''}
                       {debt.minimum_payment > 0 ? ` · Mínimo: ${fmt(debt.minimum_payment)}` : ''}
                     </p>
+                    {debt.origin_date && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Desde {new Date(debt.origin_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                        {debt.corrected_balance != null && (
+                          <> · Corrigido pela poupança: <span className="font-semibold text-warning">{fmt(debt.corrected_balance)}</span></>
+                        )}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-bold text-expense">{fmt(debt.balance)}</p>
+                    {debt.origin_date && (
+                      <button
+                        onClick={() => handleCorrectBySavings(debt)}
+                        disabled={correctingId === debt.id}
+                        className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors ml-auto"
+                        title="Calcular valor corrigido pela poupança"
+                      >
+                        {correctingId === debt.id
+                          ? <Loader2 className="h-3 w-3 animate-spin" />
+                          : <PiggyBank className="h-3 w-3" />}
+                        Atualizar pela poupança
+                      </button>
+                    )}
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => setEditing(debt)} className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground">

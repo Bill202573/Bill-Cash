@@ -101,17 +101,26 @@ export interface Account {
 export type DebtType = 'credit_card' | 'personal_loan' | 'financing' | 'overdraft' | 'other';
 
 export interface Debt {
-  id:              string;
-  name:            string;
-  type:            DebtType;
-  total_amount:    number;
-  remaining:       number;
-  interest_rate:   number;
-  monthly_payment: number;
-  user_id?:        string;        // UUID do Supabase Auth
-  due_date?:       string;
-  notes?:          string;
-  created_at?:     string;
+  id:                 string;
+  name:               string;
+  type:               DebtType;
+  balance:            number;
+  interest_rate:      number;
+  minimum_payment:    number;
+  due_day?:           number;
+  user_id?:           string;        // UUID do Supabase Auth
+  notes?:             string;
+  created_at?:        string;
+  /** Data em que a dívida foi contraída (para correção pela poupança) */
+  origin_date?:       string | null;      // YYYY-MM-DD
+  /** Valor original da dívida na origin_date */
+  origin_amount?:     number | null;
+  /** Último saldo corrigido calculado (ex: pela poupança) */
+  corrected_balance?: number | null;
+  /** Quando o saldo corrigido foi calculado */
+  corrected_at?:      string | null;
+  /** Índice usado na última correção (ex: 'poupanca') */
+  correction_index?:  string | null;
 }
 
 export interface BudgetGoal {
