@@ -38,12 +38,13 @@ export function useCreditCards() {
 export function useAddCreditCard() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { getFilterUserId } = useFamilyScope();
 
   return useMutation({
     mutationFn: async (card: Omit<CreditCard, 'id' | 'created_at'>) => {
       const payload = {
         ...card,
-        user_id: user?.id,
+        user_id: getFilterUserId() ?? user?.id,
       };
       const { data, error } = await supabase.from('credit_cards').insert([payload]).select().single();
       if (error) throw error;

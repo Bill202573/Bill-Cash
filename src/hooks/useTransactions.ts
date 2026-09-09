@@ -85,6 +85,7 @@ export function useTransactions() {
 
 export function useAddTransaction() {
   const qc = useQueryClient();
+  const { getFilterUserId } = useFamilyScope();
 
   return useMutation({
     mutationFn: async (tx: Omit<Transaction, 'id' | 'created_at'>) => {
@@ -94,7 +95,9 @@ export function useAddTransaction() {
 
       const payload = {
         ...tx,
-        user_id: user.id,  // Usa o user_id real do auth
+        // Se um membro específico da família estiver selecionado no menu
+        // (ex: "Késya"), a transação é criada em nome dele.
+        user_id: getFilterUserId() ?? user.id,
       };
       const { data, error } = await supabase.from('transactions').insert([payload]).select().single();
       if (error) throw error;

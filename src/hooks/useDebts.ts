@@ -38,9 +38,10 @@ export function useDebts() {
 export function useAddDebt() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { getFilterUserId } = useFamilyScope();
   return useMutation({
     mutationFn: async (debt: Omit<Debt, 'id' | 'created_at'>) => {
-      const payload = { ...debt, user_id: debt.user_id ?? user?.id };
+      const payload = { ...debt, user_id: debt.user_id ?? getFilterUserId() ?? user?.id };
       const { data, error } = await supabase.from('debts').insert([payload]).select().single();
       if (error) throw error;
       return data as Debt;

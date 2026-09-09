@@ -40,12 +40,16 @@ export function useAccounts() {
 export function useAddAccount() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { getFilterUserId } = useFamilyScope();
 
   return useMutation({
     mutationFn: async (account: Omit<Account, 'id' | 'created_at'>) => {
       const payload = {
         ...account,
-        user_id: user?.id,  // Adiciona automaticamente o user_id
+        // Se um membro específico da família estiver selecionado no menu
+        // (ex: "Késya"), o registro é criado em nome dele — permite
+        // administrar os dados de outro membro sem precisar logar como ele.
+        user_id: getFilterUserId() ?? user?.id,
       };
       const { data, error } = await supabase.from('accounts').insert([payload]).select().single();
       if (error) throw error;
