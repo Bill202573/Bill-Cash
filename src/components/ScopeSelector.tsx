@@ -12,7 +12,7 @@ import { useFamily } from '@/hooks/useFamily';
 import { useAuth } from '@/hooks/useAuth';
 
 export function ScopeSelector() {
-  const { scope, setScope, getDisplayName } = useFamilyScope();
+  const { scope, setScope, selectedMemberId, setSelectedMemberId, getDisplayName } = useFamilyScope();
   const { user } = useAuth();
   const { data: family, isLoading } = useFamily();
 
@@ -47,7 +47,7 @@ export function ScopeSelector() {
             {/* Opção: Pessoal */}
             <DropdownMenuCheckboxItem
               checked={scope === 'personal'}
-              onCheckedChange={() => setScope('personal')}
+              onCheckedChange={() => { setScope('personal'); setSelectedMemberId(null); }}
               className="cursor-pointer"
             >
               <User className="h-4 w-4 mr-2" />
@@ -57,7 +57,7 @@ export function ScopeSelector() {
               <span className="ml-auto text-xs text-muted-foreground">(Pessoal)</span>
             </DropdownMenuCheckboxItem>
 
-            {/* Outros membros (se houver) */}
+            {/* Outros membros (se houver) — ver individualmente as despesas de cada um */}
             {family.members.length > 1 && (
               <>
                 <DropdownMenuSeparator />
@@ -66,13 +66,13 @@ export function ScopeSelector() {
                   .map(member => (
                     <DropdownMenuCheckboxItem
                       key={member.id}
-                      checked={false}
-                      disabled
-                      className="cursor-not-allowed opacity-50"
+                      checked={scope === 'family' && selectedMemberId === member.user_id}
+                      onCheckedChange={() => { setScope('family'); setSelectedMemberId(member.user_id); }}
+                      className="cursor-pointer"
                     >
                       <User className="h-4 w-4 mr-2" />
-                      <span>{member.user_id}</span>
-                      <span className="ml-auto text-xs text-muted-foreground">(Em breve)</span>
+                      <span>{member.full_name || member.email?.split('@')[0] || 'Membro'}</span>
+                      <span className="ml-auto text-xs text-muted-foreground">(Individual)</span>
                     </DropdownMenuCheckboxItem>
                   ))}
               </>
@@ -80,10 +80,10 @@ export function ScopeSelector() {
 
             <DropdownMenuSeparator />
 
-            {/* Opção: Família */}
+            {/* Opção: Família (agregado de todos os membros) */}
             <DropdownMenuCheckboxItem
-              checked={scope === 'family'}
-              onCheckedChange={() => setScope('family')}
+              checked={scope === 'family' && !selectedMemberId}
+              onCheckedChange={() => { setScope('family'); setSelectedMemberId(null); }}
               className="cursor-pointer"
             >
               <Users className="h-4 w-4 mr-2" />
@@ -95,7 +95,9 @@ export function ScopeSelector() {
             <div className="px-2 py-1.5 text-xs text-muted-foreground">
               {scope === 'personal'
                 ? 'Mostrando suas despesas pessoais'
-                : 'Mostrando despesas da família'}
+                : selectedMemberId
+                  ? `Mostrando despesas de ${getDisplayName()}`
+                  : 'Mostrando despesas de toda a família'}
             </div>
           </>
         ) : (

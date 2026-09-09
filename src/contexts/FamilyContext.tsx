@@ -35,13 +35,19 @@ export function FamilyScopeProvider({ children }: { children: ReactNode }) {
     if (scope === 'personal') {
       return user?.id ?? null;
     }
-    // family scope: retorna null (significa "mostrar de toda a família")
+    // family scope: um membro específico selecionado → filtra só ele.
+    // Nenhum selecionado → retorna null (significa "mostrar de toda a família")
+    if (selectedMemberId) return selectedMemberId;
     return null;
   };
 
   const getDisplayName = (): string => {
     if (scope === 'personal') {
       return user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Você';
+    }
+    if (selectedMemberId) {
+      const member = family?.members.find(m => m.user_id === selectedMemberId);
+      return member?.full_name || member?.email?.split('@')[0] || 'Membro';
     }
     return family?.name || 'Família';
   };

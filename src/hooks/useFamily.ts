@@ -59,12 +59,21 @@ export function useFamily() {
 
       if (membersError) throw membersError;
 
-      // 4) Enriquece com dados de auth (email, full_name)
-      // Por enquanto, retorna só os IDs
+      // 4) Enriquece com nome/email a partir de profiles
+      const userIds = (membersData ?? []).map(m => m.user_id);
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      const profileById = new Map((profilesData ?? []).map(p => [p.id, p]));
+
       const members: FamilyMember[] = (membersData ?? []).map(m => ({
         id: m.id,
         user_id: m.user_id,
         role: m.role,
+        full_name: profileById.get(m.user_id)?.full_name ?? undefined,
+        email: profileById.get(m.user_id)?.email ?? undefined,
       }));
 
       const family: FamilyGroup = {
