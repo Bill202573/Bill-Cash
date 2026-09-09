@@ -1,4 +1,4 @@
-import type { Account, Transaction, CardBill, CardExpense, Debt } from './supabase';
+import type { Account, Transaction, CardBill, CardExpense, Debt, Investment } from './supabase';
 import type { InternalTransfer } from '@/hooks/useInternalTransfers';
 
 /**
@@ -77,7 +77,9 @@ export interface FinancialSnapshot {
   cardExpensesPending:number;
   /** Total de dívidas remanescentes */
   debtsRemaining:     number;
-  /** Patrimônio líquido = cash − a pagar */
+  /** Soma dos saldos de todos os investimentos — patrimônio positivo */
+  totalInvested:      number;
+  /** Patrimônio líquido = cash + investido − a pagar − dívidas */
   netWorth:           number;
 }
 
@@ -88,11 +90,14 @@ export function computeFinancialSnapshot(
   cardBills:          CardBill[],
   cardExpenses:       CardExpense[],
   debts:              Debt[],
+  investments:        Investment[] = [],
 ): FinancialSnapshot {
   const totalCash = accounts.reduce(
     (sum, acc) => sum + computeAccountBalance(acc, transactions, internalTransfers).current,
     0,
   );
+
+  const totalInvested = investments.reduce((sum, inv) => sum + Number(inv.current_balance ?? 0), 0);
 
   // Faturas de cartão a pagar: não reconciliadas
   const openOrClosedBills = cardBills.filter(b => b.status !== 'reconciled');
@@ -120,6 +125,7 @@ export function computeFinancialSnapshot(
     cardBillsToPay:     toPay,
     cardExpensesPending,
     debtsRemaining,
-    netWorth: totalCash - toPay - debtsRemaining,
+    totalInvested,
+    netWorth: totalCash + totalInvested - toPay - debtsRemaining,
   };
 }

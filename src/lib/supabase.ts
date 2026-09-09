@@ -130,6 +130,57 @@ export interface Debt {
   correction_index?:  string | null;
 }
 
+// ─── Metas / Planos de vida ────────────────────────────────────────────────────
+export type LifeGoalCategory = 'viagem' | 'veiculo' | 'imovel' | 'documentacao' | 'mudanca' | 'outro';
+export type LifeGoalStatus   = 'planejando' | 'em_andamento' | 'concluido' | 'cancelado';
+
+export interface LifeGoal {
+  id:              string;
+  name:            string;
+  category:        LifeGoalCategory;
+  estimated_cost:  number;
+  saved_amount:    number;
+  target_date?:    string | null;   // YYYY-MM-DD
+  status:          LifeGoalStatus;
+  notes?:          string | null;
+  user_id?:        string;
+  created_at?:     string;
+}
+
+export const LIFE_GOAL_CATEGORY_LABELS: Record<LifeGoalCategory, string> = {
+  viagem:        'Viagem',
+  veiculo:       'Veículo',
+  imovel:        'Imóvel',
+  documentacao:  'Documentação',
+  mudanca:       'Mudança',
+  outro:         'Outro',
+};
+
+// ─── Investimentos ──────────────────────────────────────────────────────────────
+export type InvestmentType = 'poupanca' | 'cdb' | 'tesouro' | 'acoes' | 'fundo' | 'cripto' | 'outro';
+
+export interface Investment {
+  id:               string;
+  name:             string;
+  type:             InvestmentType;
+  current_balance:  number;
+  target_amount?:   number | null;
+  institution?:     string | null;
+  notes?:           string | null;
+  user_id?:         string;
+  created_at?:      string;
+}
+
+export const INVESTMENT_TYPE_LABELS: Record<InvestmentType, string> = {
+  poupanca: 'Poupança',
+  cdb:      'CDB',
+  tesouro:  'Tesouro Direto',
+  acoes:    'Ações',
+  fundo:    'Fundo de Investimento',
+  cripto:   'Criptomoeda',
+  outro:    'Outro',
+};
+
 export interface BudgetGoal {
   id:       string;
   category: string;

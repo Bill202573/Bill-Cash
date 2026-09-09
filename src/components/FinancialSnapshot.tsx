@@ -1,17 +1,18 @@
 import { useMemo } from 'react';
-import { Wallet, CreditCard, FileWarning, TrendingUp, TrendingDown } from 'lucide-react';
+import { Wallet, CreditCard, FileWarning, TrendingUp, TrendingDown, PiggyBank } from 'lucide-react';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useInternalTransfers } from '@/hooks/useInternalTransfers';
 import { useCardBills } from '@/hooks/useCardBills';
 import { useCardExpenses } from '@/hooks/useCardExpenses';
 import { useDebts } from '@/hooks/useDebts';
+import { useInvestments } from '@/hooks/useInvestments';
 import { computeFinancialSnapshot } from '@/lib/balances';
 import { fmt } from '@/lib/financial';
 
 /**
  * Painel "Posição atual": resumo em tempo real da situação financeira.
- * Mostra saldo em conta, total a pagar (cartões + dívidas) e patrimônio líquido.
+ * Mostra saldo em conta, investido, total a pagar (cartões + dívidas) e patrimônio líquido.
  */
 export function FinancialSnapshot() {
   const { data: accounts          = [] } = useAccounts();
@@ -20,10 +21,11 @@ export function FinancialSnapshot() {
   const { data: bills             = [] } = useCardBills();
   const { data: cardExpenses      = [] } = useCardExpenses();
   const { data: debts             = [] } = useDebts();
+  const { data: investments       = [] } = useInvestments();
 
   const snap = useMemo(
-    () => computeFinancialSnapshot(accounts, transactions, internalTransfers, bills, cardExpenses, debts),
-    [accounts, transactions, internalTransfers, bills, cardExpenses, debts],
+    () => computeFinancialSnapshot(accounts, transactions, internalTransfers, bills, cardExpenses, debts, investments),
+    [accounts, transactions, internalTransfers, bills, cardExpenses, debts, investments],
   );
 
   const isPositive = snap.netWorth >= 0;
@@ -43,7 +45,7 @@ export function FinancialSnapshot() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         {/* Em conta */}
         <div className="bg-income/5 border border-income/20 rounded-lg p-3">
           <div className="flex items-center gap-2 text-income mb-1">
@@ -53,6 +55,18 @@ export function FinancialSnapshot() {
           <p className="text-xl font-display font-bold text-income">+{fmt(snap.totalCash)}</p>
           <p className="text-xs text-muted-foreground mt-1">
             Soma do saldo vivo de {accounts.length} conta{accounts.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+
+        {/* Investido */}
+        <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+          <div className="flex items-center gap-2 text-primary mb-1">
+            <PiggyBank className="h-4 w-4" />
+            <p className="text-xs font-medium uppercase tracking-wide">Investido</p>
+          </div>
+          <p className="text-xl font-display font-bold text-primary">+{fmt(snap.totalInvested)}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {investments.length} aplicaç{investments.length === 1 ? 'ão' : 'ões'} — ver em Planos
           </p>
         </div>
 
@@ -87,6 +101,8 @@ export function FinancialSnapshot() {
           <TrendingUp className="inline h-3 w-3 mr-1" />
           {fmt(snap.totalCash)}
         </span>
+        <span>+</span>
+        <span className="text-primary">{fmt(snap.totalInvested)}</span>
         <span>−</span>
         <span className="text-warning">{fmt(snap.cardBillsToPay)}</span>
         <span>−</span>

@@ -19,6 +19,7 @@ import Cards from '@/pages/Cards';
 import CardDetail from '@/pages/CardDetail';
 import Categories from '@/pages/Categories';
 import FixedBills from '@/pages/FixedBills';
+import Plans from '@/pages/Plans';
 import Assistente from '@/pages/Assistente';
 import Configuracoes from '@/pages/Configuracoes';
 import NotFound from '@/pages/NotFound';
@@ -139,6 +140,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Layout><ErrorBoundary><FixedBills   /></ErrorBoundary></Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/planos"
+            element={
+              <ProtectedRoute>
+                <Layout><ErrorBoundary><Plans        /></ErrorBoundary></Layout>
               </ProtectedRoute>
             }
           />

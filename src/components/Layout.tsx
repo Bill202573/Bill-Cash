@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ArrowLeftRight, CreditCard, Target,
   Lightbulb, Wallet, FileText, Bot, Settings, Menu, X, Tag,
-  Sun, Moon,
+  Sun, Moon, Sparkles,
 } from 'lucide-react';
 import { ProfileMenu } from './ProfileMenu';
 import { ScopeSelector } from './ScopeSelector';
@@ -20,6 +20,7 @@ const NAV = [
   { path: '/categorias',   icon: Tag,             label: 'Categorias'    },
   { path: '/contas-fixas', icon: FileText,        label: 'Contas Fixas'  },
   { path: '/dividas',      icon: CreditCard,      label: 'Dívidas'       },
+  { path: '/planos',       icon: Sparkles,        label: 'Planos'        },
   { path: '/orcamento',    icon: Target,          label: 'Orçamento'     },
   { path: '/insights',     icon: Lightbulb,       label: 'Insights'      },
   { path: '/assistente',    icon: Bot,      label: 'Assistente IA',  highlight: true },
