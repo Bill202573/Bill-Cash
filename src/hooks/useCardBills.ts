@@ -6,12 +6,13 @@ import { useFamily } from './useFamily';
 
 /** Lista faturas (opcionalmente filtrada por cartão) */
 export function useCardBills(cardId?: string) {
-  const { scope } = useFamilyScope();
+  const { scope, getFilterUserId } = useFamilyScope();
   const { user } = useAuth();
   const { data: family } = useFamily();
+  const filterUserId = getFilterUserId();
 
   return useQuery({
-    queryKey: ['card_bills', cardId ?? 'all', scope, user?.id, family?.members],
+    queryKey: ['card_bills', cardId ?? 'all', scope, filterUserId, user?.id, family?.members],
     queryFn: async () => {
       if (!user?.id) return [];
 
@@ -19,14 +20,11 @@ export function useCardBills(cardId?: string) {
 
       if (cardId) {
         q = q.eq('card_id', cardId);
-      } else {
-        // Filtro por scope
-        if (scope === 'personal') {
-          q = q.eq('user_id', user.id);
-        } else if (scope === 'family' && family?.members) {
-          const memberIds = family.members.map(m => m.user_id);
-          q = q.in('user_id', memberIds);
-        }
+      } else if (filterUserId) {
+        q = q.eq('user_id', filterUserId);
+      } else if (scope === 'family' && family?.members) {
+        const memberIds = family.members.map(m => m.user_id);
+        q = q.in('user_id', memberIds);
       }
 
       const { data, error } = await q;

@@ -5,12 +5,13 @@ import { useAuth } from './useAuth';
 import { useFamily } from './useFamily';
 
 export function useAccounts() {
-  const { scope } = useFamilyScope();
+  const { scope, getFilterUserId } = useFamilyScope();
   const { user } = useAuth();
   const { data: family } = useFamily();
+  const filterUserId = getFilterUserId();
 
   return useQuery({
-    queryKey: ['accounts', scope, user?.id, family?.members],
+    queryKey: ['accounts', scope, filterUserId, user?.id, family?.members],
     queryFn: async () => {
       if (!user?.id) return [];
 
@@ -19,12 +20,11 @@ export function useAccounts() {
         .select('*')
         .order('created_at', { ascending: true });
 
-      // Filtro por scope
-      if (scope === 'personal') {
-        // Mostra apenas contas do usuário atual
-        query = query.eq('user_id', user.id);
+      if (filterUserId) {
+        // Pessoal, ou um membro específico da família selecionado
+        query = query.eq('user_id', filterUserId);
       } else if (scope === 'family' && family?.members) {
-        // Mostra contas de todos os membros da família
+        // Família agregada: todos os membros
         const memberIds = family.members.map(m => m.user_id);
         query = query.in('user_id', memberIds);
       }

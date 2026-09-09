@@ -5,12 +5,13 @@ import { useAuth } from './useAuth';
 import { useFamily } from './useFamily';
 
 export function useCreditCards() {
-  const { scope } = useFamilyScope();
+  const { scope, getFilterUserId } = useFamilyScope();
   const { user } = useAuth();
   const { data: family } = useFamily();
+  const filterUserId = getFilterUserId();
 
   return useQuery({
-    queryKey: ['credit_cards', scope, user?.id, family?.members],
+    queryKey: ['credit_cards', scope, filterUserId, user?.id, family?.members],
     queryFn: async () => {
       if (!user?.id) return [];
 
@@ -19,9 +20,8 @@ export function useCreditCards() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      // Filtro por scope
-      if (scope === 'personal') {
-        query = query.eq('user_id', user.id);
+      if (filterUserId) {
+        query = query.eq('user_id', filterUserId);
       } else if (scope === 'family' && family?.members) {
         const memberIds = family.members.map(m => m.user_id);
         query = query.in('user_id', memberIds);

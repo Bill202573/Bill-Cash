@@ -49,6 +49,13 @@ async function ensureBill(
     .maybeSingle();
   if (existing) return existing.id;
 
+  // Herda o dono da fatura a partir do cartão, para o filtro por membro da família funcionar
+  const { data: card } = await supabase
+    .from('credit_cards')
+    .select('user_id')
+    .eq('id', cardId)
+    .maybeSingle();
+
   // Cria nova
   const { data: newBill, error } = await supabase
     .from('card_bills')
@@ -60,6 +67,7 @@ async function ensureBill(
       total_amount: 0,
       paid_amount:  0,
       status:       'open',
+      user_id:      card?.user_id,
     }])
     .select('id')
     .single();

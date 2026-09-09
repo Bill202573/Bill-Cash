@@ -48,12 +48,13 @@ export function useBulkCategorize() {
 }
 
 export function useTransactions() {
-  const { scope } = useFamilyScope();
+  const { scope, getFilterUserId } = useFamilyScope();
   const { user } = useAuth();
   const { data: family } = useFamily();
+  const filterUserId = getFilterUserId();
 
   return useQuery({
-    queryKey: ['transactions', scope, user?.id, family?.members],
+    queryKey: ['transactions', scope, filterUserId, user?.id, family?.members],
     queryFn: async () => {
       if (!user?.id) return [];
 
@@ -65,12 +66,11 @@ export function useTransactions() {
         .select('*')
         .order('date', { ascending: false });
 
-      // Filtro por scope
-      if (scope === 'personal') {
-        // Mostra apenas transações do usuário atual
-        query = query.eq('user_id', user.id);
+      if (filterUserId) {
+        // Pessoal, ou um membro específico da família selecionado
+        query = query.eq('user_id', filterUserId);
       } else if (scope === 'family' && family?.members) {
-        // Mostra transações de todos os membros da família
+        // Família agregada: todos os membros
         const memberIds = family.members.map(m => m.user_id);
         query = query.in('user_id', memberIds);
       }
