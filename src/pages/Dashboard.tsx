@@ -109,16 +109,6 @@ export default function Dashboard() {
         <FinancialSnapshot />
       </div>
 
-      {/* ── Alertas de contas fixas (atrasadas + a vencer) ── */}
-      <div className="mb-4">
-        <BillsAlertPanel />
-      </div>
-
-      {/* ── Toggle: incluir cartão por categoria ── */}
-      <div className="mb-4">
-        <IncludeCardsToggle />
-      </div>
-
       {/* ── Summary cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <SummaryCard
@@ -149,6 +139,16 @@ export default function Dashboard() {
           changeType="neutral"
           icon="credit"
         />
+      </div>
+
+      {/* ── Alertas de contas fixas (atrasadas + a vencer) ── */}
+      <div className="mb-4">
+        <BillsAlertPanel />
+      </div>
+
+      {/* ── Toggle: incluir cartão por categoria ── */}
+      <div className="mb-4">
+        <IncludeCardsToggle />
       </div>
 
       {/* ── Demonstrativo por categoria (full width, com subcategorias expandíveis) ── */}
