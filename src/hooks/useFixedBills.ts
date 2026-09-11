@@ -11,6 +11,8 @@ export interface FixedBill {
   category: string;
   expected_amount: number | null;
   active_months: number[] | null; // null = todos os meses
+  /** Restringe active_months a um ano específico (ex: IPTU 2026). null = qualquer ano */
+  active_year?: number | null;
   due_day: number;
   due_month_offset: number; // 0 = vence no mesmo mês, 1 = vence no mês seguinte (ex: Light)
   competence_month?: string;     // YYYY-MM: mês a que a conta se refere (ex: janeiro)
@@ -59,6 +61,10 @@ export function isPaymentDone(p: FixedBillPayment | undefined): boolean {
 /** Retorna true se a conta tem movimentação no mês dado */
 export function billAppliesToMonth(bill: FixedBill, yearMonth: string): boolean {
   if (!bill.active) return false;
+  if (bill.active_year != null) {
+    const y = parseInt(yearMonth.slice(0, 4), 10);
+    if (y !== bill.active_year) return false;
+  }
   if (bill.active_months === null || bill.active_months.length === 0) return true;
   const m = parseInt(yearMonth.slice(5), 10);
   return bill.active_months.includes(m);
