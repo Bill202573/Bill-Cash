@@ -14,14 +14,18 @@ const CATEGORY_RULES: Array<{ patterns: string[]; category: string }> = [
   { patterns: ['mcdonalds', 'burger king', 'kfc', 'subway', 'giraffas', "bobs ", 'bob\'s', 'outback', 'coxinha', 'hot dog'], category: 'Alimentação' },
   { patterns: ['restaurante', 'lanchonete', 'pizzaria', 'sushi', 'japonês', 'japones', 'churrascaria', 'buffet', 'bistrô'], category: 'Alimentação' },
   { patterns: ['extra hipermercado', 'pao de acucar', 'pão de açúcar', 'carrefour', 'walmart', 'atacadao', 'atacadão', 'assai', 'assaí', 'makro', 'tenda atacado'], category: 'Alimentação' },
-  { patterns: ['mercado', 'supermercado', 'hortifruti', 'padaria', 'panificadora', 'empório', 'emporio', 'quitanda', 'feira'], category: 'Alimentação' },
+  { patterns: ['mercado', 'market', 'supermercado', 'hortifruti', 'hortigranjeir', 'frutas', 'padaria', 'panificadora', 'empório', 'emporio', 'quitanda', 'feira'], category: 'Alimentação' },
   // Moradia
   { patterns: ['aluguel', 'condominio', 'condomínio', 'iptu', 'sindico'], category: 'Moradia' },
   { patterns: ['light ', 'enel ', 'cpfl', 'elektro', 'cemig', 'coelba', 'energisa', 'celpe', 'coelce', 'energia eletrica'], category: 'Moradia' },
   { patterns: ['sabesp', 'cedae', 'sanepar', 'embasa', 'cagece', 'agua e esgoto', 'saneamento'], category: 'Moradia' },
   { patterns: ['tim ', 'claro ', 'vivo ', ' oi ', 'sky ', 'net ', 'nextel', 'internet', 'fibra optica', 'banda larga', 'wifi'], category: 'Moradia' },
+  // Cartão de crédito
+  { patterns: ['pagamento de fatura'], category: 'Pagamento Cartão' },
+  // Doações
+  { patterns: ['igreja', 'dizimo', 'dízimo', 'oferta '], category: 'Doações' },
   // Saúde
-  { patterns: ['farmacia', 'farmácia', 'drogaria', 'drogasil', 'ultrafarma', 'droga raia', 'pacheco', 'sao joao farm', 'drogal'], category: 'Saúde' },
+  { patterns: ['farmacia', 'farmácia', 'drogaria', 'drogasil', 'ultrafarma', 'droga raia', 'pacheco', 'sao joao farm', 'drogal', 'cityfarma'], category: 'Saúde' },
   { patterns: ['hospital', 'clinica', 'clínica', 'laboratorio', 'laboratorio', 'exame', 'consulta', 'medico', 'médico', 'dentista', 'odonto', 'ortopedista', 'dermatol'], category: 'Saúde' },
   { patterns: ['unimed', 'bradesco saude', 'amil', 'sulamerica', 'notredame', 'hapvida', 'plano saude', 'plano de saude'], category: 'Saúde' },
   // Lazer
@@ -58,6 +62,7 @@ export function detectCategory(description: string): string {
 // terceiros, sem palavra-chave genérica de "condomínio" na descrição real).
 const PERSONAL_RULES: Array<{ patterns: string[]; category: string; subcategory?: string }> = [
   { patterns: ['protel'], category: 'Natura Recreio', subcategory: 'Condomínio' },
+  { patterns: ['cristina tielas madureira'], category: 'Moradia', subcategory: 'Aluguel Taquara' },
 ];
 
 export function detectCategoryDetailed(description: string): { category: string; subcategory?: string } {
