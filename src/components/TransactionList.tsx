@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Pencil, Trash2, Undo2, CreditCard, MoreVertical, StickyNote } from 'lucide-react';
 import { useDeleteTransaction } from '@/hooks/useTransactions';
+import { useFamily } from '@/hooks/useFamily';
 import { TransactionForm } from './TransactionForm';
 import { MarkAsTransferModal } from './MarkAsTransferModal';
 import {
@@ -73,11 +74,38 @@ function parseDescription(raw: string) {
   return { type: entity ? type : undefined, entity: entity || type, bankDetail: bankDetail || undefined };
 }
 
+/** Paleta estável por pessoa — atribuída por posição (ordenada), garante cores
+ *  distintas entre os membros da família em vez de depender de hash (que pode
+ *  colidir para duas pessoas quaisquer). */
+const MEMBER_COLORS = [
+  'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+  'bg-pink-500/15 text-pink-600 dark:text-pink-400',
+  'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+];
+
 export default function TransactionList({ transactions, limit, showActions = true }: Props) {
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [marking, setMarking] = useState<Transaction | null>(null);
   const del = useDeleteTransaction();
   const qc = useQueryClient();
+  const { data: family } = useFamily();
+
+  // Mapa user_id -> {name, initial, color} — fonte confiável (a coluna "user" é
+  // texto livre e inconsistente, ex: "Você" vs "William" para a mesma pessoa)
+  const memberById = useMemo(() => {
+    const m = new Map<string, { name: string; initial: string; color: string }>();
+    const sorted = [...(family?.members ?? [])].sort((a, b) => a.user_id.localeCompare(b.user_id));
+    sorted.forEach((mem, i) => {
+      const name = mem.full_name?.trim() || mem.email?.split('@')[0] || 'Membro';
+      m.set(mem.user_id, {
+        name: name.split(' ')[0],
+        initial: name[0]?.toUpperCase() ?? '?',
+        color: MEMBER_COLORS[i % MEMBER_COLORS.length],
+      });
+    });
+    return m;
+  }, [family]);
 
   const items = limit ? transactions.slice(0, limit) : transactions;
 
@@ -153,6 +181,7 @@ export default function TransactionList({ transactions, limit, showActions = tru
             // useUnifiedTransactions. Elas não são editáveis aqui — devem ser
             // gerenciadas na página de Cartões.
             const isCardExpense = tx.id.startsWith('card-');
+            const who = tx.user_id ? memberById.get(tx.user_id) : undefined;
             return (
               <div
                 key={tx.id}
@@ -161,20 +190,30 @@ export default function TransactionList({ transactions, limit, showActions = tru
                 }`}
                 title={isCardExpense ? 'Despesa de cartão (gerencie em Cartões)' : parsed.bankDetail}
               >
-                {/* Ícone */}
-                <div className={`p-2 lg:p-1.5 rounded-lg lg:rounded-md flex-shrink-0 ${
-                  isCardExpense        ? 'bg-primary/10'
-                : tx.type === 'income'  ? 'bg-income/10'
-                : tx.type === 'expense' ? 'bg-expense/10'
-                :                         'bg-primary/10'
-                }`}>
-                  {isCardExpense
-                    ? <CreditCard className="h-4 w-4 text-primary" />
-                  : tx.type === 'income'
-                    ? <ArrowUpRight className="h-4 w-4 text-income" />
-                  : tx.type === 'expense'
-                    ? <ArrowDownRight className="h-4 w-4 text-expense" />
-                    : <ArrowLeftRight className="h-4 w-4 text-primary" />}
+                {/* Ícone + selo de quem fez a movimentação */}
+                <div className="relative flex-shrink-0">
+                  <div className={`p-2 lg:p-1.5 rounded-lg lg:rounded-md ${
+                    isCardExpense        ? 'bg-primary/10'
+                  : tx.type === 'income'  ? 'bg-income/10'
+                  : tx.type === 'expense' ? 'bg-expense/10'
+                  :                         'bg-primary/10'
+                  }`}>
+                    {isCardExpense
+                      ? <CreditCard className="h-4 w-4 text-primary" />
+                    : tx.type === 'income'
+                      ? <ArrowUpRight className="h-4 w-4 text-income" />
+                    : tx.type === 'expense'
+                      ? <ArrowDownRight className="h-4 w-4 text-expense" />
+                      : <ArrowLeftRight className="h-4 w-4 text-primary" />}
+                  </div>
+                  {who && (
+                    <span
+                      title={who.name}
+                      className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ring-2 ring-background ${who.color}`}
+                    >
+                      {who.initial}
+                    </span>
+                  )}
                 </div>
 
                 {/* Descrição - flex-1 para ocupar espaço */}
@@ -201,7 +240,8 @@ export default function TransactionList({ transactions, limit, showActions = tru
                     <span className="truncate">
                       {tx.category}
                       {tx.subcategory ? ` › ${tx.subcategory}` : ''}
-                      {' · '}{fmtDate(tx.date)} {' · '}{tx.user_label}
+                      {' · '}{fmtDate(tx.date)}
+                      {who ? ` · ${who.name}` : ''}
                     </span>
                     {tx.notes && (
                       <StickyNote
