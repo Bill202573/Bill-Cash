@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Check, X, AlertTriangle, Clock,
   Plus, Pencil, Trash2, CalendarCheck, ChevronLeft, ChevronRight,
@@ -500,6 +501,7 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
 
 export default function FixedBills() {
   const today = new Date();
+  const location = useLocation();
   const [year,     setYear]     = useState(today.getFullYear());
   const [showForm, setShowForm] = useState(false);
   const [editing,  setEditing]  = useState<FixedBill | null>(null);
@@ -542,6 +544,19 @@ export default function FixedBills() {
     // Agora abrimos para meses futuros também — usuário pode cadastrar conta antecipadamente
     setModal({ bill, yearMonth, status, payment });
   };
+
+  // Deep-link vindo do painel "Contas Fixas" do Dashboard: abre direto a conta/mês clicado
+  const deepLink = location.state as { billId?: string; yearMonth?: string } | null;
+  useEffect(() => {
+    if (!deepLink?.billId || !deepLink.yearMonth) return;
+    const bill = bills.find(b => b.id === deepLink.billId);
+    if (!bill) return;
+    const linkYear = parseInt(deepLink.yearMonth.slice(0, 4), 10);
+    if (linkYear !== year) { setYear(linkYear); return; } // troca o ano e reavalia no próximo render
+    openModal(bill, deepLink.yearMonth);
+    window.history.replaceState({}, ''); // consome o deep-link (evita reabrir em back/refresh)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bills, year]);
 
   const handleDelete = async (bill: FixedBill) => {
     if (!confirm(`Remover "${bill.name}"?`)) return;

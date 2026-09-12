@@ -150,7 +150,7 @@ export function BillsAlertPanel() {
               {overdue.map(row => (
                 <button
                   key={`${row.bill.id}_${row.yearMonth}`}
-                  onClick={() => navigate('/contas-fixas')}
+                  onClick={() => navigate('/contas-fixas', { state: { billId: row.bill.id, yearMonth: row.yearMonth } })}
                   className="w-full flex items-center justify-between p-2 rounded-md bg-background/40 hover:bg-background/70 transition-colors text-left"
                 >
                   <div className="min-w-0">
@@ -197,7 +197,7 @@ export function BillsAlertPanel() {
                 return (
                   <button
                     key={`${row.bill.id}_${row.yearMonth}`}
-                    onClick={() => navigate('/contas-fixas')}
+                    onClick={() => navigate('/contas-fixas', { state: { billId: row.bill.id, yearMonth: row.yearMonth } })}
                     className="w-full flex items-center justify-between p-2 rounded-md bg-background/40 hover:bg-background/70 transition-colors text-left"
                   >
                     <div className="min-w-0">
