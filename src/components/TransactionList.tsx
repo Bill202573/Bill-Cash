@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { Transaction } from '@/lib/supabase';
 import { fmt } from '@/lib/financial';
+import { getFriendlyName } from '@/lib/importParser';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
@@ -147,6 +148,7 @@ export default function TransactionList({ transactions, limit, showActions = tru
         <div className="space-y-2 lg:space-y-0.5">
           {items.map(tx => {
             const parsed = parseDescription(tx.description);
+            const displayName = getFriendlyName(tx.description) ?? parsed.entity;
             // Despesas de cartão vêm com id prefixado "card-" pelo hook
             // useUnifiedTransactions. Elas não são editáveis aqui — devem ser
             // gerenciadas na página de Cartões.
@@ -179,7 +181,7 @@ export default function TransactionList({ transactions, limit, showActions = tru
                 <div className="flex-1 min-w-0">
                   {/* Linha 1: contraparte + valor + data */}
                   <div className="flex items-baseline justify-between gap-2 mb-1">
-                    <p className="text-sm font-medium truncate">{parsed.entity}</p>
+                    <p className="text-sm font-medium truncate">{displayName}</p>
                     <p className={`text-sm font-semibold flex-shrink-0 ${
                       tx.type === 'income'  ? 'text-income'
                     : tx.type === 'expense' ? 'text-expense'

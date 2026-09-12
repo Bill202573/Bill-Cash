@@ -78,6 +78,23 @@ export function detectCategoryDetailed(description: string): { category: string;
   return { category: detectCategory(description) };
 }
 
+// Nomes de exibição amigáveis para contrapartes que aparecem com razões sociais
+// diferentes (franquias/filiais distintas) mas representam a mesma coisa pro
+// usuário — não altera a descrição salva, só como a tela mostra o título.
+const FRIENDLY_NAME_RULES: Array<{ patterns: string[]; name: string }> = [
+  { patterns: ['instituto de idiomas de queimados', 'instituto de educacao e idiomas taquaral', 'instituto de educação e idiomas taquaral'], name: 'CNA Idiomas' },
+];
+
+export function getFriendlyName(description: string): string | undefined {
+  const lower = description.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  for (const rule of FRIENDLY_NAME_RULES) {
+    if (rule.patterns.some(p => lower.includes(p.normalize('NFD').replace(/[̀-ͯ]/g, '')))) {
+      return rule.name;
+    }
+  }
+  return undefined;
+}
+
 // Detecta se é potencialmente uma transferência interna
 export function isLikelyInternalTransfer(description: string): boolean {
   const lower = description.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');

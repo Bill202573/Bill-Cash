@@ -25,8 +25,11 @@ export default function Transactions() {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterCat, setFilterCat] = useState('Todas');
+  const [filterSubcat, setFilterSubcat] = useState('Todas');
   const [filterMonth, setFilterMonth] = useState('all');
   const [filterAccount, setFilterAccount] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const { transactions, isLoading } = useUnifiedTransactions();
   const { data: cards = [] } = useCreditCards();
@@ -59,16 +62,41 @@ export default function Transactions() {
     return months;
   }, [transactions]);
 
+  // Subcategorias disponíveis — restritas à categoria selecionada (ou todas, se "Todas")
+  const availableSubcats = useMemo(() => {
+    const set = new Set<string>();
+    transactions.forEach(t => {
+      if (!t.subcategory) return;
+      if (filterCat !== 'Todas' && t.category !== filterCat) return;
+      set.add(t.subcategory);
+    });
+    return [...set].sort();
+  }, [transactions, filterCat]);
+
+  // Muda a categoria e a subcategoria selecionada não pertence mais a ela → reseta
+  const handleCatChange = (cat: string) => {
+    setFilterCat(cat);
+    if (filterSubcat !== 'Todas') {
+      const stillValid = transactions.some(
+        t => t.subcategory === filterSubcat && (cat === 'Todas' || t.category === cat),
+      );
+      if (!stillValid) setFilterSubcat('Todas');
+    }
+  };
+
   const filtered = useMemo(() => {
     return transactions.filter(t => {
       if (filterType !== 'all' && t.type !== filterType) return false;
       if (filterCat !== 'Todas' && t.category !== filterCat) return false;
+      if (filterSubcat !== 'Todas' && t.subcategory !== filterSubcat) return false;
       if (filterMonth !== 'all' && !t.date.startsWith(filterMonth)) return false;
+      if (dateFrom && t.date < dateFrom) return false;
+      if (dateTo && t.date > dateTo) return false;
       if (filterAccount !== 'all' && t.account !== filterAccount) return false;
       if (search && !t.description.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [transactions, filterType, filterCat, filterMonth, filterAccount, search]);
+  }, [transactions, filterType, filterCat, filterSubcat, filterMonth, dateFrom, dateTo, filterAccount, search]);
 
   // Summary reflects filtered data
   const summary = useMemo(() => {
@@ -201,12 +229,22 @@ export default function Transactions() {
             </SelectContent>
           </Select>
 
-          <Select value={filterCat} onValueChange={setFilterCat}>
+          <Select value={filterCat} onValueChange={handleCatChange}>
             <SelectTrigger className="w-full text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {ALL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterSubcat} onValueChange={setFilterSubcat} disabled={availableSubcats.length === 0}>
+            <SelectTrigger className="w-full text-sm">
+              <SelectValue placeholder="Subcategoria" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Todas">Todas as subcategorias</SelectItem>
+              {availableSubcats.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
 
@@ -235,6 +273,28 @@ export default function Transactions() {
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        {/* Período customizado (soma no resumo acima reflete o intervalo) */}
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">De</label>
+            <Input
+              type="date"
+              className="w-full text-sm"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Até</label>
+            <Input
+              type="date"
+              className="w-full text-sm"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
