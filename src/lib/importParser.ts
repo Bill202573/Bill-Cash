@@ -63,6 +63,9 @@ export function detectCategory(description: string): string {
 const PERSONAL_RULES: Array<{ patterns: string[]; category: string; subcategory?: string }> = [
   { patterns: ['protel'], category: 'Natura Recreio', subcategory: 'Condomínio' },
   { patterns: ['cristina tielas madureira'], category: 'Moradia', subcategory: 'Aluguel Taquara' },
+  { patterns: ['mirella ribeiro nogueira'], category: 'Família', subcategory: 'Mirella' },
+  { patterns: ['joão guilherme ribeiro nogueira'], category: 'Família', subcategory: 'João Guilherme' },
+  { patterns: ['késya guimarães ribeiro nogueira'], category: 'Família', subcategory: 'Késya' },
 ];
 
 export function detectCategoryDetailed(description: string): { category: string; subcategory?: string } {

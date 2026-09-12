@@ -45,7 +45,12 @@ function toTitleCase(str: string) {
  */
 function parseDescription(raw: string) {
   const parts = raw.split(' - ');
-  if (parts.length === 1) return { type: raw, entity: undefined };
+  // Sem separador: a descrição inteira já É o nome da contraparte (varia conforme
+  // o extrato do banco trouxe ou não o prefixo "Pagamento de boleto efetuado" etc.)
+  if (parts.length === 1) {
+    const bare = raw === raw.toUpperCase() ? toTitleCase(raw) : raw;
+    return { type: undefined, entity: bare };
+  }
 
   const type   = parts[0].trim();
   let   entity = parts[1]?.trim() ?? '';
@@ -62,7 +67,9 @@ function parseDescription(raw: string) {
   // Detalhe bancário extra (banco, agência, conta) — disponível no title
   const bankDetail = parts.slice(2).join(' - ').trim();
 
-  return { type, entity: entity || undefined, bankDetail: bankDetail || undefined };
+  // Sem contraparte identificável (ex: "Débito em conta", "Pagamento de fatura"):
+  // usa o próprio tipo como nome principal em vez de deixar em branco
+  return { type: entity ? type : undefined, entity: entity || type, bankDetail: bankDetail || undefined };
 }
 
 export default function TransactionList({ transactions, limit, showActions = true }: Props) {
@@ -170,9 +177,9 @@ export default function TransactionList({ transactions, limit, showActions = tru
 
                 {/* Descrição - flex-1 para ocupar espaço */}
                 <div className="flex-1 min-w-0">
-                  {/* Linha 1: tipo + valor + data */}
+                  {/* Linha 1: contraparte + valor + data */}
                   <div className="flex items-baseline justify-between gap-2 mb-1">
-                    <p className="text-sm font-medium truncate">{parsed.type}</p>
+                    <p className="text-sm font-medium truncate">{parsed.entity}</p>
                     <p className={`text-sm font-semibold flex-shrink-0 ${
                       tx.type === 'income'  ? 'text-income'
                     : tx.type === 'expense' ? 'text-expense'
@@ -182,9 +189,9 @@ export default function TransactionList({ transactions, limit, showActions = tru
                     </p>
                   </div>
 
-                  {/* Linha 2: entidade */}
-                  {parsed.entity && (
-                    <p className="text-xs text-foreground/70 truncate mb-0.5">{parsed.entity}</p>
+                  {/* Linha 2: tipo (Pix, boleto, débito...) */}
+                  {parsed.type && (
+                    <p className="text-xs text-foreground/70 truncate mb-0.5">{parsed.type}</p>
                   )}
 
                   {/* Linha 3: categoria + data */}
