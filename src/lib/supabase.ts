@@ -105,7 +105,7 @@ export interface Account {
   created_at?:           string;
 }
 
-export type DebtType = 'credit_card' | 'personal_loan' | 'financing' | 'overdraft' | 'other';
+export type DebtType = 'credit_card' | 'personal_loan' | 'financing' | 'overdraft' | 'tax' | 'institutional' | 'other';
 
 export interface Debt {
   id:                 string;
@@ -294,5 +294,12 @@ export const DEBT_TYPE_LABELS: Record<DebtType, string> = {
   personal_loan: 'Empréstimo Pessoal',
   financing:     'Financiamento',
   overdraft:     'Cheque Especial',
+  tax:           'Imposto',
+  institutional: 'Instituição',
   other:         'Outro',
 };
+
+/** Ordem de exibição dos grupos de dívida na tela de Dívidas */
+export const DEBT_TYPE_ORDER: DebtType[] = [
+  'personal_loan', 'tax', 'institutional', 'credit_card', 'financing', 'overdraft', 'other',
+];

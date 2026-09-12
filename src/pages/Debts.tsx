@@ -7,7 +7,7 @@ import { DebtForm } from '@/components/DebtForm';
 import { useDebts, useDeleteDebt, useUpdateDebt } from '@/hooks/useDebts';
 import { compareMethods } from '@/lib/debtPlanner';
 import { calculateSavingsCorrection } from '@/lib/savingsIndex';
-import { DEBT_TYPE_LABELS, type Debt } from '@/lib/supabase';
+import { DEBT_TYPE_LABELS, DEBT_TYPE_ORDER, type Debt, type DebtType } from '@/lib/supabase';
 import { fmt } from '@/lib/financial';
 import { toast } from 'sonner';
 
@@ -45,6 +45,16 @@ export default function Debts() {
       setCorrectingId(null);
     }
   };
+
+  const groupedDebts = useMemo(() => {
+    const groups: Partial<Record<DebtType, Debt[]>> = {};
+    debts.forEach(d => {
+      (groups[d.type] ??= []).push(d);
+    });
+    return DEBT_TYPE_ORDER
+      .map(type => ({ type, items: groups[type] ?? [] }))
+      .filter(g => g.items.length > 0);
+  }, [debts]);
 
   const totalDebt = debts.reduce((s, d) => s + d.balance, 0);
   const totalMinimum = debts.reduce((s, d) => s + d.minimum_payment, 0);
@@ -105,57 +115,72 @@ export default function Debts() {
       ) : (
         <div className="glass-card rounded-lg p-5 mb-6 animate-fade-in">
           <h3 className="font-display font-semibold text-lg mb-4">Suas Dívidas</h3>
-          <div className="space-y-3">
-            {debts.map(debt => {
+          <div className="space-y-5">
+            {groupedDebts.map(({ type, items }) => {
+              const groupTotal = items.reduce((s, d) => s + d.balance, 0);
               return (
-                <div
-                  key={debt.id}
-                  className="flex items-center gap-4 p-3 rounded-lg bg-secondary/50 border border-border/30 group"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <p className="text-sm font-medium">{debt.name}</p>
-                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${badgeColor(debt.interest_rate)}`}>
-                        {debt.interest_rate.toFixed(2)}% a.m.
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {DEBT_TYPE_LABELS[debt.type]}
-                      {debt.due_day ? ` · Vence dia ${debt.due_day}` : ''}
-                      {debt.minimum_payment > 0 ? ` · Mínimo: ${fmt(debt.minimum_payment)}` : ''}
+                <div key={type}>
+                  <div className="flex items-center justify-between mb-2 px-0.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {DEBT_TYPE_LABELS[type]} · {items.length}
                     </p>
-                    {debt.origin_date && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Desde {new Date(debt.origin_date + 'T12:00:00').toLocaleDateString('pt-BR')}
-                        {debt.corrected_balance != null && (
-                          <> · Corrigido pela poupança: <span className="font-semibold text-warning">{fmt(debt.corrected_balance)}</span></>
-                        )}
-                      </p>
-                    )}
+                    <p className="text-xs font-semibold text-expense">{fmt(groupTotal)}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-expense">{fmt(debt.balance)}</p>
-                    {debt.origin_date && (
-                      <button
-                        onClick={() => handleCorrectBySavings(debt)}
-                        disabled={correctingId === debt.id}
-                        className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors ml-auto"
-                        title="Calcular valor corrigido pela poupança"
+                  <div className="space-y-3">
+                    {items.map(debt => (
+                      <div
+                        key={debt.id}
+                        className="flex items-center gap-4 p-3 rounded-lg bg-secondary/50 border border-border/30 group"
                       >
-                        {correctingId === debt.id
-                          ? <Loader2 className="h-3 w-3 animate-spin" />
-                          : <PiggyBank className="h-3 w-3" />}
-                        Atualizar pela poupança
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => setEditing(debt)} className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => handleDelete(debt.id)} className="p-1 rounded hover:bg-expense/10 text-muted-foreground hover:text-expense">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <p className="text-sm font-medium">{debt.name}</p>
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${badgeColor(debt.interest_rate)}`}>
+                              {debt.interest_rate.toFixed(2)}% a.m.
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {debt.due_day ? `Vence dia ${debt.due_day}` : ''}
+                            {debt.minimum_payment > 0 ? `${debt.due_day ? ' · ' : ''}Mínimo: ${fmt(debt.minimum_payment)}` : ''}
+                          </p>
+                          {debt.origin_date && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Desde {new Date(debt.origin_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                              {debt.corrected_balance != null && (
+                                <> · Corrigido pela poupança: <span className="font-semibold text-warning">{fmt(debt.corrected_balance)}</span></>
+                              )}
+                            </p>
+                          )}
+                          {debt.notes && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{debt.notes}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-expense">{fmt(debt.balance)}</p>
+                          {debt.origin_date && (
+                            <button
+                              onClick={() => handleCorrectBySavings(debt)}
+                              disabled={correctingId === debt.id}
+                              className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors ml-auto"
+                              title="Calcular valor corrigido pela poupança"
+                            >
+                              {correctingId === debt.id
+                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                : <PiggyBank className="h-3 w-3" />}
+                              Atualizar pela poupança
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => setEditing(debt)} className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={() => handleDelete(debt.id)} className="p-1 rounded hover:bg-expense/10 text-muted-foreground hover:text-expense">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
