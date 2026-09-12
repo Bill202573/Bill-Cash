@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Clock, ChevronRight, TrendingUp } from 'lucide-react';
 import {
   useFixedBills, useFixedBillPayments,
-  getBillCellStatus, calculateLateFee, billAppliesToMonth,
+  getBillCellStatus, calculateLateFee, billAppliesToMonth, resolveDueDate,
   type FixedBill, type FixedBillPayment,
 } from '@/hooks/useFixedBills';
 import { fmt } from '@/lib/financial';
@@ -64,11 +64,11 @@ export function BillsAlertPanel() {
         // Pulamos paid, future, na
         if (status !== 'overdue' && status !== 'pending') return;
 
-        const dueDate = payment?.due_date
-          ?? `${ym}-${String(bill.due_day || 10).padStart(2, '0')}`;
+        const dueDateObj = resolveDueDate(bill, payment, ym);
+        const dueDate = `${dueDateObj.getFullYear()}-${String(dueDateObj.getMonth() + 1).padStart(2, '0')}-${String(dueDateObj.getDate()).padStart(2, '0')}`;
         const expectedAmount = payment?.expected_amount ?? bill.expected_amount ?? 0;
 
-        const calc = calculateLateFee(bill, payment, today);
+        const calc = calculateLateFee(bill, payment, ym, today);
 
         const row: BillRow = {
           bill, payment, yearMonth: ym, dueDate, expectedAmount,

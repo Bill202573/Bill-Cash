@@ -283,7 +283,7 @@ function PayModal({ state, onClose }: { state: ModalState; onClose: () => void }
 
           {/* Cálculo de multa e juros */}
           {status === 'overdue' && (() => {
-            const calc = calculateLateFee(bill, payment);
+            const calc = calculateLateFee(bill, payment, yearMonth);
             if (calc.extraCharges <= 0) return null;
             return (
               <div className="bg-expense/5 border border-expense/30 rounded-lg p-2.5 text-xs space-y-1">

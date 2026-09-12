@@ -73,6 +73,23 @@ export function billAppliesToMonth(bill: FixedBill, yearMonth: string): boolean 
   return bill.active_months.includes(m);
 }
 
+/**
+ * Resolve a data de vencimento efetiva de uma competência: usa a do registro de
+ * pagamento se houver (pode variar mês a mês), senão cai no template da conta
+ * (due_month_offset + due_day). Fonte única usada por getBillCellStatus e
+ * calculateLateFee para nunca ficarem dessincronizados.
+ */
+export function resolveDueDate(
+  bill: FixedBill,
+  payment: FixedBillPayment | undefined,
+  yearMonth: string,
+): Date {
+  if (payment?.due_date) return new Date(payment.due_date + 'T12:00:00');
+  const [y, mo] = yearMonth.split('-').map(Number);
+  const offset  = bill.due_month_offset ?? 0;
+  return new Date(y, mo - 1 + offset, bill.due_day || 10, 12);
+}
+
 export function getBillCellStatus(
   bill: FixedBill,
   payment: FixedBillPayment | undefined,
@@ -84,29 +101,16 @@ export function getBillCellStatus(
   // Se já foi pago, retorna paid (independente do due_date)
   if (isPaymentDone(payment)) return 'paid';
 
-  // Se há um registro em aberto (sem pagamento), o status é baseado no due_date dele
-  if (payment && payment.due_date) {
-    const due = new Date(payment.due_date + 'T12:00:00');
-    return due > today ? 'pending' : 'overdue';
+  // Sem registro de pagamento e competência ainda não chegou → nem cabe pagar
+  if (!payment?.due_date) {
+    const [y, mo] = yearMonth.split('-').map(Number);
+    const todayY  = today.getFullYear();
+    const todayM  = today.getMonth() + 1; // 1-based
+    if (y > todayY || (y === todayY && mo > todayM)) return 'future';
   }
 
-  // Sem registro: usa lógica baseada no template (fallback)
-  const [y, mo] = yearMonth.split('-').map(Number);
-  const todayY  = today.getFullYear();
-  const todayM  = today.getMonth() + 1; // 1-based
-
-  // Competência futura → ainda não cabe nem pagar
-  if (y > todayY || (y === todayY && mo > todayM)) return 'future';
-
-  // Data real de vencimento = competência + due_month_offset meses, dia due_day
-  const offset  = bill.due_month_offset ?? 0;
-  const dueDate = new Date(y, mo - 1 + offset, bill.due_day || 10);
-
-  // Vencimento ainda não chegou → pendente
-  if (dueDate > today) return 'pending';
-
-  // Vencimento passou sem pagamento → atrasado
-  return 'overdue';
+  const due = resolveDueDate(bill, payment, yearMonth);
+  return due > today ? 'pending' : 'overdue';
 }
 
 // ─── Cálculo de multa e juros ────────────────────────────────────────────────
@@ -134,11 +138,14 @@ export interface LateFeeBreakdown {
  *
  * @param bill        Template da conta fixa (tem regras de multa/juros)
  * @param payment     Instância mensal (tem o valor e vencimento daquele mês)
+ * @param yearMonth   Competência (YYYY-MM) — usada para resolver o vencimento
+ *                    quando não há payment.due_date (fallback do template)
  * @param today       Data de referência (geralmente new Date())
  */
 export function calculateLateFee(
   bill: FixedBill,
   payment: FixedBillPayment | undefined,
+  yearMonth: string,
   today: Date = new Date(),
 ): LateFeeBreakdown {
   const empty: LateFeeBreakdown = {
@@ -154,11 +161,7 @@ export function calculateLateFee(
   // Se já foi pago, não há mais juros
   if (isPaymentDone(payment)) return empty;
 
-  // Sem due_date conhecido → não conseguimos calcular
-  const dueStr = payment?.due_date;
-  if (!dueStr) return empty;
-
-  const due = new Date(dueStr + 'T12:00:00');
+  const due = resolveDueDate(bill, payment, yearMonth);
   const todayMidday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
 
   const msPerDay = 1000 * 60 * 60 * 24;
