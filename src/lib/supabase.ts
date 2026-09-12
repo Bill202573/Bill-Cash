@@ -7,6 +7,29 @@ const supabaseAnonKey = 'sb_publishable_GFCKtO3G2YwiweQ3S5mKaQ_Dioakamh';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+/**
+ * O Postgrest/Supabase retorna no máximo ~1000 linhas por request por padrão —
+ * uma query sem paginação corta silenciosamente o resto (sem erro), o que já
+ * aconteceu aqui: só a tabela de transações da família passou de 1000 linhas.
+ * Use isso para buscar QUALQUER lista que possa crescer além disso.
+ */
+export async function fetchAllPages<T>(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  pageSize = 1000,
+): Promise<T[]> {
+  const all: T[] = [];
+  let offset = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data, error } = await buildQuery(offset, offset + pageSize - 1);
+    if (error) throw error;
+    all.push(...(data ?? []));
+    if (!data || data.length < pageSize) break;
+    offset += pageSize;
+  }
+  return all;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface Transaction {

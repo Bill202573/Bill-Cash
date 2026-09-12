@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllPages } from '@/lib/supabase';
 import { useFamilyScope } from '@/contexts/FamilyContext';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -41,19 +41,21 @@ export function ReconciliationPanel() {
       const oneYearAgo = new Date();
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
-      let query = supabase
-        .from('transactions')
-        .select('*')
-        .gte('date', oneYearAgo.toISOString().slice(0, 10))
-        .order('date', { ascending: true });
+      // Paginado: a família já passa de 1000 linhas, limite silencioso do Supabase.
+      const data = await fetchAllPages<TransactionWithReconciliation>((from, to) => {
+        let query = supabase
+          .from('transactions')
+          .select('*')
+          .gte('date', oneYearAgo.toISOString().slice(0, 10))
+          .order('date', { ascending: true })
+          .range(from, to);
 
-      // filteredUserId é null no modo "família" (mostra de todos os membros)
-      if (filteredUserId) query = query.eq('user_id', filteredUserId);
+        // filteredUserId é null no modo "família" (mostra de todos os membros)
+        if (filteredUserId) query = query.eq('user_id', filteredUserId);
 
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data as TransactionWithReconciliation[];
+        return query;
+      });
+      return data;
     },
   });
 

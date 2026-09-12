@@ -51,8 +51,27 @@ export const lastNMonths = (n: number): string[] =>
 
 // ─── Summary ──────────────────────────────────────────────────────────────────
 
-export function getMonthlySummary(transactions: Transaction[], month: string) {
-  const txs = transactions.filter(t => t.date.startsWith(month) && t.type !== 'transfer');
+/** Último dia de um mês 'YYYY-MM', formatado 'YYYY-MM-DD' */
+function monthEnd(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  return `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+}
+
+/** [primeiro dia, último dia] de um mês 'YYYY-MM', formatados 'YYYY-MM-DD' */
+export function monthRange(month: string): [string, string] {
+  return [`${month}-01`, monthEnd(month)];
+}
+
+/** Exclui pares circulares (pass-through sem efeito econômico real, ex: dinheiro
+ *  de terceiros repassado) — nunca devem contar como receita/despesa própria. */
+function excludeCircular(transactions: Transaction[]): Transaction[] {
+  return transactions.filter(t => t.reconciliation_status !== 'circular');
+}
+
+function summarizePeriod(transactions: Transaction[], from: string, to: string) {
+  const txs = excludeCircular(transactions).filter(
+    t => t.date >= from && t.date <= to && t.type !== 'transfer',
+  );
   const income = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expenses = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const balance = income - expenses;
@@ -60,8 +79,16 @@ export function getMonthlySummary(transactions: Transaction[], month: string) {
   return { income, expenses, balance, savingsRate };
 }
 
-export function getCategoryBreakdown(transactions: Transaction[], month: string) {
-  const txs = transactions.filter(t => t.date.startsWith(month) && t.type === 'expense');
+export function getMonthlySummary(transactions: Transaction[], month: string) {
+  return summarizePeriod(transactions, `${month}-01`, monthEnd(month));
+}
+
+/** Igual a getMonthlySummary, mas para um intervalo de datas arbitrário (De/Até) */
+export function getSummaryForPeriod(transactions: Transaction[], from: string, to: string) {
+  return summarizePeriod(transactions, from, to);
+}
+
+function breakdownByCategory(txs: Transaction[]) {
   const total = txs.reduce((s, t) => s + t.amount, 0);
   const map: Record<string, { amount: number; count: number }> = {};
   txs.forEach(t => {
@@ -77,25 +104,16 @@ export function getCategoryBreakdown(transactions: Transaction[], month: string)
       percentage: total > 0 ? (amount / total) * 100 : 0,
     }))
     .sort((a, b) => b.amount - a.amount);
+}
+
+export function getCategoryBreakdown(transactions: Transaction[], month: string) {
+  const txs = excludeCircular(transactions).filter(t => t.date.startsWith(month) && t.type === 'expense');
+  return breakdownByCategory(txs);
 };
 
 export function getIncomeCategoryBreakdown(transactions: Transaction[], month: string) {
-  const txs = transactions.filter(t => t.date.startsWith(month) && t.type === 'income');
-  const total = txs.reduce((s, t) => s + t.amount, 0);
-  const map: Record<string, { amount: number; count: number }> = {};
-  txs.forEach(t => {
-    if (!map[t.category]) map[t.category] = { amount: 0, count: 0 };
-    map[t.category].amount += t.amount;
-    map[t.category].count  += 1;
-  });
-  return Object.entries(map)
-    .map(([name, { amount, count }]) => ({
-      name,
-      amount,
-      count,
-      percentage: total > 0 ? (amount / total) * 100 : 0,
-    }))
-    .sort((a, b) => b.amount - a.amount);
+  const txs = excludeCircular(transactions).filter(t => t.date.startsWith(month) && t.type === 'income');
+  return breakdownByCategory(txs);
 };
 
 /**
@@ -125,7 +143,22 @@ export function getCategoryBreakdownWithSubs(
   month:        string,
   type:         'expense' | 'income',
 ): CategoryWithSubsBreakdown[] {
-  const txs = transactions.filter(t => t.date.startsWith(month) && t.type === type);
+  const txs = excludeCircular(transactions).filter(t => t.date.startsWith(month) && t.type === type);
+  return breakdownByCategoryWithSubs(txs);
+}
+
+/** Igual a getCategoryBreakdownWithSubs, mas para um intervalo de datas arbitrário */
+export function getCategoryBreakdownWithSubsForPeriod(
+  transactions: Transaction[],
+  from:         string,
+  to:           string,
+  type:         'expense' | 'income',
+): CategoryWithSubsBreakdown[] {
+  const txs = excludeCircular(transactions).filter(t => t.date >= from && t.date <= to && t.type === type);
+  return breakdownByCategoryWithSubs(txs);
+}
+
+function breakdownByCategoryWithSubs(txs: Transaction[]): CategoryWithSubsBreakdown[] {
   const total = txs.reduce((s, t) => s + t.amount, 0);
 
   const byCat: Record<string, {

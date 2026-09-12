@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, CalendarRange, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import SummaryCard from '@/components/SummaryCard';
 import TransactionList from '@/components/TransactionList';
 import { CategoryStatement } from '@/components/CategoryStatement';
@@ -14,10 +15,11 @@ import { useDebts } from '@/hooks/useDebts';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { useBudgetGoals } from '@/hooks/useBudgetGoals';
 import {
-  getMonthlySummary,
-  getCategoryBreakdownWithSubs,
+  getSummaryForPeriod,
+  getCategoryBreakdownWithSubsForPeriod,
   currentMonth,
   lastNMonths,
+  monthRange,
   fmt,
 } from '@/lib/financial';
 
@@ -35,6 +37,13 @@ export default function Dashboard() {
   const [showForm,      setShowForm]      = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth());
 
+  // Período customizado (De/Até) — quando os dois estão preenchidos, tem
+  // prioridade sobre a navegação por mês único.
+  const [showRangePicker, setShowRangePicker] = useState(false);
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo,   setCustomTo]   = useState('');
+  const hasCustomRange = !!(customFrom && customTo);
+
   const { transactions } = useUnifiedTransactions();
   const { data: debts = [] } = useDebts();
   const { data: cards = [] } = useCreditCards();
@@ -44,15 +53,23 @@ export default function Dashboard() {
   const monthIdx  = AVAILABLE_MONTHS.indexOf(selectedMonth);
   const canGoPrev = monthIdx > 0;
   const canGoNext = monthIdx < AVAILABLE_MONTHS.length - 1;
-  const isToday   = selectedMonth === currentMonth();
+  const isToday   = !hasCustomRange && selectedMonth === currentMonth();
 
   const monthLabel = formatMonthLabel(selectedMonth);
 
-  // ── Data derived from selected month ─────────────────────────────────────
-  const summary          = useMemo(() => getMonthlySummary(transactions, selectedMonth),         [transactions, selectedMonth]);
-  const expenseCatsWithSubs = useMemo(() => getCategoryBreakdownWithSubs(transactions, selectedMonth, 'expense'), [transactions, selectedMonth]);
-  const incomeCatsWithSubs  = useMemo(() => getCategoryBreakdownWithSubs(transactions, selectedMonth, 'income'),  [transactions, selectedMonth]);
-  const monthTxs         = useMemo(() => transactions.filter(t => t.date.startsWith(selectedMonth)), [transactions, selectedMonth]);
+  // ── Período efetivo: intervalo customizado OU o mês selecionado ──────────
+  const [periodFrom, periodTo] = useMemo(
+    () => (hasCustomRange ? [customFrom, customTo] : monthRange(selectedMonth)),
+    [hasCustomRange, customFrom, customTo, selectedMonth],
+  );
+
+  const clearCustomRange = () => { setCustomFrom(''); setCustomTo(''); setShowRangePicker(false); };
+
+  // ── Dados derivados do período (mês ou intervalo customizado) ────────────
+  const summary          = useMemo(() => getSummaryForPeriod(transactions, periodFrom, periodTo), [transactions, periodFrom, periodTo]);
+  const expenseCatsWithSubs = useMemo(() => getCategoryBreakdownWithSubsForPeriod(transactions, periodFrom, periodTo, 'expense'), [transactions, periodFrom, periodTo]);
+  const incomeCatsWithSubs  = useMemo(() => getCategoryBreakdownWithSubsForPeriod(transactions, periodFrom, periodTo, 'income'),  [transactions, periodFrom, periodTo]);
+  const monthTxs          = useMemo(() => transactions.filter(t => t.date >= periodFrom && t.date <= periodTo), [transactions, periodFrom, periodTo]);
 
   const totalCardBill = cards.reduce((s, c) => s + c.current_bill, 0);
 
@@ -62,40 +79,75 @@ export default function Dashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h2 className="text-2xl font-display font-bold">
-            {isToday ? 'Olá! 👋' : 'Histórico'}
+            {hasCustomRange ? 'Período selecionado' : isToday ? 'Olá! 👋' : 'Histórico'}
           </h2>
 
           {/* Month navigation */}
-          <div className="flex items-center gap-1 mt-1.5">
+          <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+            {!hasCustomRange && (
+              <>
+                <button
+                  onClick={() => setSelectedMonth(AVAILABLE_MONTHS[monthIdx - 1])}
+                  disabled={!canGoPrev}
+                  className="p-1 rounded hover:bg-secondary disabled:opacity-25 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+                </button>
+
+                <span className="text-sm font-medium text-muted-foreground capitalize min-w-[150px] text-center">
+                  {monthLabel}
+                </span>
+
+                <button
+                  onClick={() => setSelectedMonth(AVAILABLE_MONTHS[monthIdx + 1])}
+                  disabled={!canGoNext}
+                  className="p-1 rounded hover:bg-secondary disabled:opacity-25 transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+
+                {!isToday && (
+                  <button
+                    onClick={() => setSelectedMonth(currentMonth())}
+                    className="ml-1 text-xs text-primary hover:underline font-medium"
+                  >
+                    Mês atual
+                  </button>
+                )}
+              </>
+            )}
+
             <button
-              onClick={() => setSelectedMonth(AVAILABLE_MONTHS[monthIdx - 1])}
-              disabled={!canGoPrev}
-              className="p-1 rounded hover:bg-secondary disabled:opacity-25 transition-colors"
+              onClick={() => setShowRangePicker(v => !v)}
+              className={`flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors ${
+                hasCustomRange ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-secondary'
+              }`}
             >
-              <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+              <CalendarRange className="h-3.5 w-3.5" />
+              {hasCustomRange
+                ? `${new Date(customFrom + 'T12:00:00').toLocaleDateString('pt-BR')} – ${new Date(customTo + 'T12:00:00').toLocaleDateString('pt-BR')}`
+                : 'Período customizado'}
             </button>
 
-            <span className="text-sm font-medium text-muted-foreground capitalize min-w-[150px] text-center">
-              {monthLabel}
-            </span>
-
-            <button
-              onClick={() => setSelectedMonth(AVAILABLE_MONTHS[monthIdx + 1])}
-              disabled={!canGoNext}
-              className="p-1 rounded hover:bg-secondary disabled:opacity-25 transition-colors"
-            >
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </button>
-
-            {!isToday && (
-              <button
-                onClick={() => setSelectedMonth(currentMonth())}
-                className="ml-1 text-xs text-primary hover:underline font-medium"
-              >
-                Mês atual
+            {hasCustomRange && (
+              <button onClick={clearCustomRange} className="p-1 rounded hover:bg-secondary text-muted-foreground" title="Limpar período">
+                <X className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
+
+          {showRangePicker && (
+            <div className="flex items-end gap-2 mt-2 animate-in fade-in">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">De</label>
+                <Input type="date" className="h-8 text-sm" value={customFrom} onChange={e => setCustomFrom(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Até</label>
+                <Input type="date" className="h-8 text-sm" value={customTo} onChange={e => setCustomTo(e.target.value)} />
+              </div>
+            </div>
+          )}
         </div>
 
         <Button onClick={() => setShowForm(true)} size="sm" className="gap-2 self-start sm:self-auto">
@@ -112,7 +164,7 @@ export default function Dashboard() {
       {/* ── Summary cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <SummaryCard
-          title="Saldo do Mês"
+          title={hasCustomRange ? 'Saldo do Período' : 'Saldo do Mês'}
           value={fmt(summary.balance)}
           change={`${summary.savingsRate >= 0 ? '+' : ''}${summary.savingsRate.toFixed(1)}% de poupança`}
           changeType={summary.balance >= 0 ? 'positive' : 'negative'}

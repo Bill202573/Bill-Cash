@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase, type Transaction } from '@/lib/supabase';
+import { supabase, fetchAllPages, type Transaction } from '@/lib/supabase';
 import { useFamilyScope } from '@/contexts/FamilyContext';
 import { useAuth } from './useAuth';
 import { useFamily } from './useFamily';
@@ -61,23 +61,26 @@ export function useTransactions() {
       // Retorna TODAS as transações — reconciliation_status é só um marcador de
       // bookkeeping (já vinculada a uma conta fixa/fatura), não indica se o
       // dinheiro realmente moveu. Saldo de conta e relatórios precisam de todas.
-      let query = supabase
-        .from('transactions')
-        .select('*')
-        .order('date', { ascending: false });
+      // Paginado: a família já passa de 1000 linhas, limite silencioso do Supabase.
+      const data = await fetchAllPages<Transaction>((from, to) => {
+        let query = supabase
+          .from('transactions')
+          .select('*')
+          .order('date', { ascending: false })
+          .range(from, to);
 
-      if (filterUserId) {
-        // Pessoal, ou um membro específico da família selecionado
-        query = query.eq('user_id', filterUserId);
-      } else if (scope === 'family' && family?.members) {
-        // Família agregada: todos os membros
-        const memberIds = family.members.map(m => m.user_id);
-        query = query.in('user_id', memberIds);
-      }
+        if (filterUserId) {
+          // Pessoal, ou um membro específico da família selecionado
+          query = query.eq('user_id', filterUserId);
+        } else if (scope === 'family' && family?.members) {
+          // Família agregada: todos os membros
+          const memberIds = family.members.map(m => m.user_id);
+          query = query.in('user_id', memberIds);
+        }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data ?? []) as Transaction[];
+        return query;
+      });
+      return data;
     },
     enabled: !!user?.id,
   });
