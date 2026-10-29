@@ -101,14 +101,21 @@ export function computeFinancialSnapshot(
 
   // Faturas de cartão a pagar: não reconciliadas
   const openOrClosedBills = cardBills.filter(b => b.status !== 'reconciled');
-  const cardBillsToPay = openOrClosedBills.reduce((sum, b) => sum + Number(b.total_amount ?? 0), 0);
+  // Pagamento parcial: o que já foi pago de uma fatura não reconciliada sai do "a pagar"
+  const paidOnOpen = (b: CardBill) => Number(b.paid_amount ?? 0);
+  const cardBillsToPay = openOrClosedBills.reduce(
+    (sum, b) => sum + Math.max(Number(b.total_amount ?? 0) - paidOnOpen(b), 0), 0);
 
-  // Despesas confirmadas/pendentes em faturas não reconciliadas
+  // Despesas confirmadas/pendentes em faturas não reconciliadas (menos o já pago)
   const openBillIds = new Set(openOrClosedBills.map(b => b.id));
-  const cardExpensesPending = cardExpenses
-    .filter(e => e.status !== 'refunded')
-    .filter(e => e.bill_id && openBillIds.has(e.bill_id))
-    .reduce((sum, e) => sum + Number(e.amount), 0);
+  const cardExpensesPending = Math.max(
+    cardExpenses
+      .filter(e => e.status !== 'refunded')
+      .filter(e => e.bill_id && openBillIds.has(e.bill_id))
+      .reduce((sum, e) => sum + Number(e.amount), 0)
+    - openOrClosedBills.reduce((sum, b) => sum + paidOnOpen(b), 0),
+    0,
+  );
 
   // Dívidas: usa "remaining" (campo do schema Debt)
   const debtsRemaining = debts.reduce((sum, d: any) => {
