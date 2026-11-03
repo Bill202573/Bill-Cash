@@ -3,6 +3,7 @@ import { Settings, Bot, Save, RotateCcw, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useAiConfig, useUpdateAiConfig } from '@/hooks/useAiConfig';
+import { PluggyTestPanel } from '@/components/PluggyTestPanel';
 import { toast } from 'sonner';
 
 const DEFAULT_PROMPT = `Você é o assistente financeiro pessoal do Bill Cash, app de controle financeiro de William Nogueira.
@@ -115,6 +116,8 @@ export default function Configuracoes() {
           </Button>
         </div>
       </div>
+
+      <PluggyTestPanel />
 
       {/* Placeholder for future settings */}
       <div className="glass-card rounded-xl p-6 mt-4 opacity-50">
