@@ -52,7 +52,9 @@ export function FinancialSnapshot() {
             <Wallet className="h-4 w-4" />
             <p className="text-xs font-medium uppercase tracking-wide">Em conta</p>
           </div>
-          <p className="text-xl font-display font-bold text-income">+{fmt(snap.totalCash)}</p>
+          <p className={`text-xl font-display font-bold ${snap.totalCash < 0 ? 'text-expense' : 'text-income'}`}>
+            {snap.totalCash > 0 ? '+' : ''}{fmt(snap.totalCash)}
+          </p>
           <p className="text-xs text-muted-foreground mt-1">
             Soma do saldo vivo de {accounts.length} conta{accounts.length !== 1 ? 's' : ''}
           </p>
