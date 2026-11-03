@@ -7,7 +7,7 @@ import { useCardBills } from '@/hooks/useCardBills';
 import { useCardExpenses } from '@/hooks/useCardExpenses';
 import { useDebts } from '@/hooks/useDebts';
 import { useInvestments } from '@/hooks/useInvestments';
-import { computeFinancialSnapshot } from '@/lib/balances';
+import { computeAccountBalance, computeFinancialSnapshot } from '@/lib/balances';
 import { fmt } from '@/lib/financial';
 
 /**
@@ -26,6 +26,13 @@ export function FinancialSnapshot() {
   const snap = useMemo(
     () => computeFinancialSnapshot(accounts, transactions, internalTransfers, bills, cardExpenses, debts, investments),
     [accounts, transactions, internalTransfers, bills, cardExpenses, debts, investments],
+  );
+
+  // "Em conta" mostra só contas correntes, do perfil selecionado (eu, Késya ou Família = soma de todas)
+  const checking = useMemo(() => accounts.filter(a => a.type === 'checking'), [accounts]);
+  const checkingCash = useMemo(
+    () => checking.reduce((s, a) => s + computeAccountBalance(a, transactions, internalTransfers).current, 0),
+    [checking, transactions, internalTransfers],
   );
 
   const isPositive = snap.netWorth >= 0;
@@ -52,11 +59,11 @@ export function FinancialSnapshot() {
             <Wallet className="h-4 w-4" />
             <p className="text-xs font-medium uppercase tracking-wide">Em conta</p>
           </div>
-          <p className={`text-xl font-display font-bold ${snap.totalCash < 0 ? 'text-expense' : 'text-income'}`}>
-            {snap.totalCash > 0 ? '+' : ''}{fmt(snap.totalCash)}
+          <p className={`text-xl font-display font-bold ${checkingCash < 0 ? 'text-expense' : 'text-income'}`}>
+            {checkingCash > 0 ? '+' : ''}{fmt(checkingCash)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Soma do saldo vivo de {accounts.length} conta{accounts.length !== 1 ? 's' : ''}
+            Soma do saldo de {checking.length} conta{checking.length !== 1 ? 's' : ''} corrente{checking.length !== 1 ? 's' : ''}
           </p>
         </div>
 
