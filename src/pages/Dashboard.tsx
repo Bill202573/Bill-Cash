@@ -10,6 +10,7 @@ import { TransactionForm } from '@/components/TransactionForm';
 import { IncludeCardsToggle } from '@/components/IncludeCardsToggle';
 import { FinancialSnapshot } from '@/components/FinancialSnapshot';
 import { BillsAlertPanel } from '@/components/BillsAlertPanel';
+import { PriorityBoard } from '@/components/PriorityBoard';
 import { useUnifiedTransactions } from '@/hooks/useUnifiedTransactions';
 import { useDebts } from '@/hooks/useDebts';
 import { useCreditCards } from '@/hooks/useCreditCards';
@@ -154,6 +155,11 @@ export default function Dashboard() {
           <Plus className="h-4 w-4" />
           <span className="hidden sm:inline">Nova Transação</span>
         </Button>
+      </div>
+
+      {/* ── Quadro de avisos (prioridades pessoais) ── */}
+      <div className="mb-4">
+        <PriorityBoard />
       </div>
 
       {/* ── Posição atual (snapshot em tempo real) ── */}
