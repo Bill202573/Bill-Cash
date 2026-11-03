@@ -18,8 +18,8 @@ export function PluggyTestPanel() {
     try {
       const acc = await supabase.functions.invoke('pluggy-sync', { body: { action: 'accounts', itemId } });
       if (acc.error) throw new Error(await errText(acc.error));
-      const accounts: { id: string }[] = acc.data?.accounts ?? [];
-      const result: unknown[] = [];
+      const accounts: { id: string }[] = Array.isArray(acc.data?.accounts) ? acc.data.accounts : [];
+      const result: unknown[] = [{ conexao: { authOk: acc.data?.authOk, item: acc.data?.item, accountsHttpStatus: acc.data?.accountsHttpStatus, totalContas: accounts.length } }];
       for (const a of accounts) {
         const prev = await supabase.functions.invoke('pluggy-sync', {
           body: { action: 'preview', accountId: a.id, from: '2026-10-01' },
