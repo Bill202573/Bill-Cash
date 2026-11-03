@@ -42,6 +42,32 @@ async function errText(err: unknown): Promise<string> {
   return (err as Error).message ?? String(err);
 }
 
+/** Grupo de ações com um rótulo pequeno acima */
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">{title}</p>
+      <div className="flex flex-wrap gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+/** Botão compacto de ação, com spinner enquanto executa */
+function Act({ children, loading, disabled, onClick, primary, ghost, title }: {
+  children: React.ReactNode; loading: boolean; disabled: boolean; onClick: () => void; primary?: boolean; ghost?: boolean; title?: string;
+}) {
+  return (
+    <Button
+      size="sm" variant={primary ? 'default' : ghost ? 'ghost' : 'outline'}
+      className={`h-7 px-2.5 text-xs gap-1.5 ${ghost ? 'text-muted-foreground' : ''}`}
+      disabled={disabled} onClick={onClick} title={title}
+    >
+      {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      {children}
+    </Button>
+  );
+}
+
 /** Sincronização Pluggy: simula (não grava) e grava só depois de confirmação. */
 export function PluggyTestPanel() {
   const qc = useQueryClient();
@@ -139,7 +165,7 @@ export function PluggyTestPanel() {
   };
 
   return (
-    <div className="glass-card rounded-xl p-6 mt-4">
+    <div className="glass-card rounded-xl p-5 mt-4">
       <div className="flex items-center gap-2 mb-1">
         <Landmark className="h-5 w-5 text-primary" />
         <h3 className="font-display font-semibold text-lg">Sincronização bancária (Pluggy)</h3>
@@ -147,38 +173,26 @@ export function PluggyTestPanel() {
       <p className="text-sm text-muted-foreground mb-3">
         Primeiro clique em <strong>Simular</strong> (não grava nada). Se o resumo estiver certo, clique em <strong>Gravar</strong>.
       </p>
-      <div className="space-y-2 mb-3">
+      <div className="rounded-lg border border-border/40 divide-y divide-border/30 mb-3">
         {CONNECTIONS.map(c => (
-          <div key={c.key} className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium w-44">{c.label}</span>
-            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run(c, false)} className="gap-2">
-              {busy === c.key + ':sim' && <Loader2 className="h-4 w-4 animate-spin" />}
-              Simular
-            </Button>
-            <Button size="sm" disabled={!!busy || simulated !== c.key} onClick={() => confirmApply(c)} className="gap-2">
-              {busy === c.key + ':apply' && <Loader2 className="h-4 w-4 animate-spin" />}
-              Gravar
-            </Button>
-            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => readCard(c)} className="gap-2">
-              {busy === c.key + ':card' && <Loader2 className="h-4 w-4 animate-spin" />}
-              Ler cartão
-            </Button>
-            {c.cardName && (
-              <>
-                <Button size="sm" variant="outline" disabled={!!busy} onClick={() => runCard(c, false)} className="gap-2">
-                  {busy === c.key + ':csim' && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Simular cartão
-                </Button>
-                <Button size="sm" variant="outline" disabled={!!busy} onClick={() => debugCard(c)} className="gap-2">
-                  {busy === c.key + ':cdebug' && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Diagnóstico cartão
-                </Button>
-                <Button size="sm" disabled={!!busy || simulated !== c.key + ':card'} onClick={() => confirmCardApply(c)} className="gap-2">
-                  {busy === c.key + ':capply' && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Gravar cartão
-                </Button>
-              </>
-            )}
+          <div key={c.key} className="p-3 grid gap-x-4 gap-y-2 md:grid-cols-[10rem_auto_1fr] md:items-center">
+            <span className="text-sm font-medium">{c.label}</span>
+            <Group title="Conta corrente">
+              <Act loading={busy === c.key + ':sim'} disabled={!!busy} onClick={() => run(c, false)}>Simular</Act>
+              <Act primary loading={busy === c.key + ':apply'} disabled={!!busy || simulated !== c.key} onClick={() => confirmApply(c)}>Gravar</Act>
+            </Group>
+            <Group title="Cartão de crédito">
+              {c.cardName ? (
+                <>
+                  <Act loading={busy === c.key + ':csim'} disabled={!!busy} onClick={() => runCard(c, false)}>Simular</Act>
+                  <Act primary loading={busy === c.key + ':capply'} disabled={!!busy || simulated !== c.key + ':card'} onClick={() => confirmCardApply(c)}>Gravar</Act>
+                  <Act ghost loading={busy === c.key + ':card'} disabled={!!busy} onClick={() => readCard(c)} title="Somente leitura: lista as contas, faturas e compras do cartão">Ler</Act>
+                  <Act ghost loading={busy === c.key + ':cdebug'} disabled={!!busy} onClick={() => debugCard(c)} title="Somente leitura: detalha parcelas e faturas para investigar diferenças">Diagnóstico</Act>
+                </>
+              ) : (
+                <span className="text-xs text-muted-foreground">Sem cartão nesta conexão</span>
+              )}
+            </Group>
           </div>
         ))}
       </div>
