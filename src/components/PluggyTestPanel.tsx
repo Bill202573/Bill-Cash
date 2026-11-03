@@ -25,6 +25,10 @@ const CONNECTIONS: Conn[] = [
     cardName: 'Nubank William', closingDay: 28, dueDay: 4, fromMonth: '2026-01',
   },
   {
+    key: 'wn', label: 'Nubank WN (PJ)', itemId: 'd7f6e808-146e-4954-9636-836f9111bca9', appAccount: 'Nubank WN', from: '2026-10-01',
+    cardName: 'Nubank WN', closingDay: 28, dueDay: 4, fromMonth: '2026-01',
+  },
+  {
     key: 'kesya', label: 'Nubank Késya', itemId: '940e0afb-50ce-4cbc-9893-1c51a727272e', appAccount: 'Nubank Késya', from: '2026-09-01',
     ownerUserId: 'fb57cc01-a770-4d16-aeb5-e0e90a2ef7ee', userLabel: 'Késya', cardName: 'Nubank Késya',
   },
