@@ -14,10 +14,16 @@ interface Conn {
   ownerUserId?: string;
   userLabel?: string;
   cardName?: string;
+  closingDay?: number;
+  dueDay?: number;
+  fromMonth?: string;
 }
 
 const CONNECTIONS: Conn[] = [
-  { key: 'william', label: 'Nubank William (PF)', itemId: '416a7475-8377-4325-956a-ccc582906a29', appAccount: 'Nubank William', from: '2026-10-01' },
+  {
+    key: 'william', label: 'Nubank William (PF)', itemId: '416a7475-8377-4325-956a-ccc582906a29', appAccount: 'Nubank William', from: '2026-10-01',
+    cardName: 'Nubank William', closingDay: 28, dueDay: 4, fromMonth: '2026-01',
+  },
   {
     key: 'kesya', label: 'Nubank Késya', itemId: '940e0afb-50ce-4cbc-9893-1c51a727272e', appAccount: 'Nubank Késya', from: '2026-09-01',
     ownerUserId: 'fb57cc01-a770-4d16-aeb5-e0e90a2ef7ee', userLabel: 'Késya', cardName: 'Nubank Késya',
@@ -89,7 +95,10 @@ export function PluggyTestPanel() {
     setOutput('');
     try {
       const res = await supabase.functions.invoke('pluggy-card-sync', {
-        body: { itemId: c.itemId, cardName: c.cardName, ownerUserId: c.ownerUserId, apply },
+        body: {
+          itemId: c.itemId, cardName: c.cardName, ownerUserId: c.ownerUserId, apply,
+          closingDay: c.closingDay, dueDay: c.dueDay, fromMonth: c.fromMonth,
+        },
       });
       if (res.error) throw new Error(await errText(res.error));
       setOutput(JSON.stringify(res.data, null, 2));
