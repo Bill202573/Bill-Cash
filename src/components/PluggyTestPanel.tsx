@@ -107,9 +107,7 @@ export function PluggyTestPanel() {
     setBusy(c.key + ':cdebug');
     setOutput('');
     try {
-      const res = await supabase.functions.invoke('pluggy-card-sync', {
-        body: { itemId: c.itemId, cardName: c.cardName, ownerUserId: c.ownerUserId, apply: false, debug: true },
-      });
+      const res = await supabase.functions.invoke('pluggy-card-debug2', { body: { itemId: c.itemId } });
       if (res.error) throw new Error(await errText(res.error));
       setOutput(JSON.stringify(res.data, null, 2));
     } catch (e) {
