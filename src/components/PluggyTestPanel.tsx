@@ -67,6 +67,21 @@ export function PluggyTestPanel() {
     }
   };
 
+  /** Somente leitura: lista o(s) cartão(ões) da conexão e as compras (inclui parcelas futuras) */
+  const readCard = async (c: Conn) => {
+    setBusy(c.key + ':card');
+    setOutput('');
+    try {
+      const res = await supabase.functions.invoke('pluggy-card-read', { body: { itemId: c.itemId } });
+      if (res.error) throw new Error(await errText(res.error));
+      setOutput(JSON.stringify(res.data, null, 2));
+    } catch (e) {
+      setOutput('ERRO: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const confirmApply = (c: Conn) => {
     if (confirm(`Gravar as transações novas de "${c.label}" no app? Confira o resumo da simulação antes.`)) run(c, true);
   };
@@ -91,6 +106,10 @@ export function PluggyTestPanel() {
             <Button size="sm" disabled={!!busy || simulated !== c.key} onClick={() => confirmApply(c)} className="gap-2">
               {busy === c.key + ':apply' && <Loader2 className="h-4 w-4 animate-spin" />}
               Gravar
+            </Button>
+            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => readCard(c)} className="gap-2">
+              {busy === c.key + ':card' && <Loader2 className="h-4 w-4 animate-spin" />}
+              Ler cartão
             </Button>
           </div>
         ))}
