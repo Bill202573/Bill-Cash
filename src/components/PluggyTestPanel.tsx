@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Copy, Landmark, Loader2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Copy, Landmark, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 interface Conn {
   key: string;
@@ -40,6 +40,86 @@ async function errText(err: unknown): Promise<string> {
     try { return await ctx.text(); } catch { /* ignora */ }
   }
   return (err as Error).message ?? String(err);
+}
+
+interface SyncRun {
+  id: string;
+  started_at: string;
+  connection_key: string;
+  kind: 'bank' | 'card' | 'refresh';
+  status: 'applied' | 'ok' | 'needs_review' | 'error';
+  message: string | null;
+}
+const KIND_LABEL: Record<SyncRun['kind'], string> = { bank: 'Conta', card: 'Cartão', refresh: 'Conexão' };
+
+/** Status da sincronização automática (7h e 19h) + botão para rodar tudo agora */
+function AutoSyncStatus() {
+  const qc = useQueryClient();
+  const [running, setRunning] = useState(false);
+  const { data: runs = [] } = useQuery({
+    queryKey: ['sync_runs'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('sync_runs').select('*').order('started_at', { ascending: false }).limit(60);
+      if (error) throw error;
+      return (data ?? []) as SyncRun[];
+    },
+  });
+  const latest = new Map<string, SyncRun>();
+  for (const r of runs) if (!latest.has(`${r.connection_key}|${r.kind}`)) latest.set(`${r.connection_key}|${r.kind}`, r);
+  const lastAt = runs[0]?.started_at;
+
+  const runNow = async () => {
+    setRunning(true);
+    try {
+      const res = await supabase.functions.invoke('pluggy-auto-sync', { body: {} });
+      if (res.error) throw new Error(await errText(res.error));
+      toast.success('Sincronização concluída');
+      qc.invalidateQueries();
+    } catch (e) {
+      toast.error('Falha na sincronização: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-border/40 p-3 mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <div>
+          <p className="text-sm font-medium">Sincronização automática</p>
+          <p className="text-xs text-muted-foreground">
+            Todos os dias às 7h e às 19h. Só grava quando o saldo do app fica igual ao do banco; senão avisa no Quadro de avisos.
+            {lastAt && <> Última: {new Date(lastAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.</>}
+          </p>
+        </div>
+        <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1.5" disabled={running} onClick={runNow}>
+          {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          Sincronizar tudo agora
+        </Button>
+      </div>
+      <div className="space-y-1">
+        {CONNECTIONS.map(c => (
+          <div key={c.key} className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <span className="w-36 font-medium">{c.label}</span>
+            {(['bank', 'card', 'refresh'] as const).map(k => {
+              const r = latest.get(`${c.key}|${k}`);
+              if (!r) return null;
+              const good = r.status === 'ok' || r.status === 'applied';
+              return (
+                <span key={k} title={r.message ?? ''} className={`inline-flex items-center gap-1 ${good ? 'text-income' : r.status === 'error' ? 'text-expense' : 'text-warning'}`}>
+                  {good ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                  {KIND_LABEL[k]}
+                  {r.status === 'applied' && ' (gravado)'}
+                  {r.status === 'needs_review' && ' (revisar)'}
+                  {r.status === 'error' && ' (erro)'}
+                </span>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 /** Grupo de ações com um rótulo pequeno acima */
@@ -170,8 +250,9 @@ export function PluggyTestPanel() {
         <Landmark className="h-5 w-5 text-primary" />
         <h3 className="font-display font-semibold text-lg">Sincronização bancária (Pluggy)</h3>
       </div>
+      <AutoSyncStatus />
       <p className="text-sm text-muted-foreground mb-3">
-        Primeiro clique em <strong>Simular</strong> (não grava nada). Se o resumo estiver certo, clique em <strong>Gravar</strong>.
+        Manual: clique em <strong>Simular</strong> (não grava nada) e, se o resumo estiver certo, em <strong>Gravar</strong>.
       </p>
       <div className="rounded-lg border border-border/40 divide-y divide-border/30 mb-3">
         {CONNECTIONS.map(c => (
