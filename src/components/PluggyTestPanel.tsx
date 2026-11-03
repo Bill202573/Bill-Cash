@@ -102,6 +102,23 @@ export function PluggyTestPanel() {
     }
   };
 
+  /** Diagnóstico do cartão: lista item a item o que compõe fatura aberta e parcelas futuras (somente leitura) */
+  const debugCard = async (c: Conn) => {
+    setBusy(c.key + ':cdebug');
+    setOutput('');
+    try {
+      const res = await supabase.functions.invoke('pluggy-card-sync', {
+        body: { itemId: c.itemId, cardName: c.cardName, ownerUserId: c.ownerUserId, apply: false, debug: true },
+      });
+      if (res.error) throw new Error(await errText(res.error));
+      setOutput(JSON.stringify(res.data, null, 2));
+    } catch (e) {
+      setOutput('ERRO: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const confirmCardApply = (c: Conn) => {
     if (confirm(`Gravar o cartão "${c.cardName}" (faturas e compras) no app? Confira o resumo da simulação antes.`)) runCard(c, true);
   };
@@ -140,6 +157,10 @@ export function PluggyTestPanel() {
                 <Button size="sm" variant="outline" disabled={!!busy} onClick={() => runCard(c, false)} className="gap-2">
                   {busy === c.key + ':csim' && <Loader2 className="h-4 w-4 animate-spin" />}
                   Simular cartão
+                </Button>
+                <Button size="sm" variant="outline" disabled={!!busy} onClick={() => debugCard(c)} className="gap-2">
+                  {busy === c.key + ':cdebug' && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Diagnóstico cartão
                 </Button>
                 <Button size="sm" disabled={!!busy || simulated !== c.key + ':card'} onClick={() => confirmCardApply(c)} className="gap-2">
                   {busy === c.key + ':capply' && <Loader2 className="h-4 w-4 animate-spin" />}
