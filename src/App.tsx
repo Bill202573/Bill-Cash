@@ -20,6 +20,7 @@ import CardDetail from '@/pages/CardDetail';
 import Categories from '@/pages/Categories';
 import FixedBills from '@/pages/FixedBills';
 import Plans from '@/pages/Plans';
+import CashFlow from '@/pages/CashFlow';
 import Assistente from '@/pages/Assistente';
 import Configuracoes from '@/pages/Configuracoes';
 import NotFound from '@/pages/NotFound';
@@ -140,6 +141,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Layout><ErrorBoundary><FixedBills   /></ErrorBoundary></Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/fluxo-de-caixa"
+            element={
+              <ProtectedRoute>
+                <Layout><ErrorBoundary><CashFlow     /></ErrorBoundary></Layout>
               </ProtectedRoute>
             }
           />

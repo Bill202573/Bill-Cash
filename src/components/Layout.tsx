@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ArrowLeftRight, CreditCard, Target,
   Lightbulb, Wallet, FileText, Bot, Settings, Menu, X, Tag,
-  Sun, Moon, Sparkles,
+  Sun, Moon, Sparkles, CalendarRange,
 } from 'lucide-react';
 import { ProfileMenu } from './ProfileMenu';
 import { ScopeSelector } from './ScopeSelector';
@@ -16,6 +16,7 @@ const NAV = [
   { path: '/',             icon: LayoutDashboard, label: 'Dashboard'     },
   { path: '/transacoes',   icon: ArrowLeftRight,  label: 'Transações'    },
   { path: '/contas',       icon: Wallet,          label: 'Contas'        },
+  { path: '/fluxo-de-caixa', icon: CalendarRange, label: 'Fluxo de Caixa' },
   { path: '/cartoes',      icon: CreditCard,      label: 'Cartões'       },
   { path: '/categorias',   icon: Tag,             label: 'Categorias'    },
   { path: '/contas-fixas', icon: FileText,        label: 'Contas Fixas'  },
