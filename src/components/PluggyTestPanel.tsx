@@ -1,61 +1,26 @@
 import { useState } from 'react';
 import { Landmark, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 
-const DEFAULT_ITEM_ID = '4cd09a75-9c61-4013-8063-f876fc7aa125';
-
-/** Teste somente-leitura da integração Pluggy (não grava nada no banco). */
-export function PluggyTestPanel() {
-  const [itemId, setItemId] = useState(DEFAULT_ITEM_ID);
-  const [loading, setLoading] = useState(false);
-  const [output, setOutput] = useState('');
-
-  const run = async () => {
-    setLoading(true);
-    setOutput('');
-    try {
-      const acc = await supabase.functions.invoke('pluggy-sync', { body: { action: 'accounts', itemId } });
-      if (acc.error) throw new Error(await errText(acc.error));
-      const accounts: { id: string }[] = Array.isArray(acc.data?.accounts) ? acc.data.accounts : [];
-      const result: unknown[] = [{ conexao: { authOk: acc.data?.authOk, item: acc.data?.item, accountsHttpStatus: acc.data?.accountsHttpStatus, totalContas: accounts.length } }];
-      for (const a of accounts) {
-        const prev = await supabase.functions.invoke('pluggy-sync', {
-          body: { action: 'preview', accountId: a.id, from: '2026-10-01' },
-        });
-        result.push({ account: a, preview: prev.error ? { error: await errText(prev.error) } : prev.data });
-      }
-      setOutput(JSON.stringify(result, null, 2));
-    } catch (e) {
-      setOutput('ERRO: ' + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="glass-card rounded-xl p-6 mt-4">
-      <div className="flex items-center gap-2 mb-1">
-        <Landmark className="h-5 w-5 text-primary" />
-        <h3 className="font-display font-semibold text-lg">Teste Pluggy (somente leitura)</h3>
-      </div>
-      <p className="text-sm text-muted-foreground mb-3">
-        Busca as contas da conexão e um resumo das transações de outubro. Não grava nada.
-      </p>
-      <div className="flex gap-2 mb-3">
-        <Input value={itemId} onChange={e => setItemId(e.target.value)} className="font-mono text-xs" />
-        <Button onClick={run} disabled={loading || !itemId} className="gap-2 shrink-0">
-          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          Testar Pluggy
-        </Button>
-      </div>
-      {output && (
-        <pre className="text-xs bg-secondary/30 rounded-lg p-3 overflow-auto max-h-96 whitespace-pre-wrap">{output}</pre>
-      )}
-    </div>
-  );
+interface Conn {
+  key: string;
+  label: string;
+  itemId: string;
+  appAccount: string;
+  from: string;
+  ownerUserId?: string;
+  userLabel?: string;
 }
+
+const CONNECTIONS: Conn[] = [
+  { key: 'william', label: 'Nubank William (PF)', itemId: '416a7475-8377-4325-956a-ccc582906a29', appAccount: 'Nubank William', from: '2026-10-01' },
+  {
+    key: 'kesya', label: 'Nubank Késya', itemId: '940e0afb-50ce-4cbc-9893-1c51a727272e', appAccount: 'Nubank Késya', from: '2026-09-01',
+    ownerUserId: 'fb57cc01-a770-4d16-aeb5-e0e90a2ef7ee', userLabel: 'Késya',
+  },
+];
 
 async function errText(err: unknown): Promise<string> {
   const ctx = (err as { context?: Response }).context;
@@ -63,4 +28,75 @@ async function errText(err: unknown): Promise<string> {
     try { return await ctx.text(); } catch { /* ignora */ }
   }
   return (err as Error).message ?? String(err);
+}
+
+/** Sincronização Pluggy: simula (não grava) e grava só depois de confirmação. */
+export function PluggyTestPanel() {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [output, setOutput] = useState('');
+  const [simulated, setSimulated] = useState<string | null>(null);
+
+  const run = async (c: Conn, apply: boolean) => {
+    setBusy(c.key + (apply ? ':apply' : ':sim'));
+    setOutput('');
+    try {
+      const acc = await supabase.functions.invoke('pluggy-sync', { body: { action: 'accounts', itemId: c.itemId } });
+      if (acc.error) throw new Error(await errText(acc.error));
+      const bank = (acc.data?.accounts ?? []).find((a: { type: string }) => a.type === 'BANK');
+      if (!bank) throw new Error('Nenhuma conta corrente nessa conexão: ' + JSON.stringify(acc.data));
+      const res = await supabase.functions.invoke('pluggy-sync', {
+        body: {
+          action: 'sync', itemId: c.itemId, accountId: bank.id, appAccount: c.appAccount, from: c.from, apply,
+          ownerUserId: c.ownerUserId, userLabel: c.userLabel,
+        },
+      });
+      if (res.error) throw new Error(await errText(res.error));
+      setOutput(JSON.stringify(res.data, null, 2));
+      if (apply) {
+        setSimulated(null);
+        qc.invalidateQueries();
+      } else {
+        setSimulated(c.key);
+      }
+    } catch (e) {
+      setOutput('ERRO: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const confirmApply = (c: Conn) => {
+    if (confirm(`Gravar as transações novas de "${c.label}" no app? Confira o resumo da simulação antes.`)) run(c, true);
+  };
+
+  return (
+    <div className="glass-card rounded-xl p-6 mt-4">
+      <div className="flex items-center gap-2 mb-1">
+        <Landmark className="h-5 w-5 text-primary" />
+        <h3 className="font-display font-semibold text-lg">Sincronização bancária (Pluggy)</h3>
+      </div>
+      <p className="text-sm text-muted-foreground mb-3">
+        Primeiro clique em <strong>Simular</strong> (não grava nada). Se o resumo estiver certo, clique em <strong>Gravar</strong>.
+      </p>
+      <div className="space-y-2 mb-3">
+        {CONNECTIONS.map(c => (
+          <div key={c.key} className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium w-44">{c.label}</span>
+            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => run(c, false)} className="gap-2">
+              {busy === c.key + ':sim' && <Loader2 className="h-4 w-4 animate-spin" />}
+              Simular
+            </Button>
+            <Button size="sm" disabled={!!busy || simulated !== c.key} onClick={() => confirmApply(c)} className="gap-2">
+              {busy === c.key + ':apply' && <Loader2 className="h-4 w-4 animate-spin" />}
+              Gravar
+            </Button>
+          </div>
+        ))}
+      </div>
+      {output && (
+        <pre className="text-xs bg-secondary/30 rounded-lg p-3 overflow-auto max-h-96 whitespace-pre-wrap">{output}</pre>
+      )}
+    </div>
+  );
 }
