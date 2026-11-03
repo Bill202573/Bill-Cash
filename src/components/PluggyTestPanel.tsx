@@ -13,13 +13,14 @@ interface Conn {
   from: string;
   ownerUserId?: string;
   userLabel?: string;
+  cardName?: string;
 }
 
 const CONNECTIONS: Conn[] = [
   { key: 'william', label: 'Nubank William (PF)', itemId: '416a7475-8377-4325-956a-ccc582906a29', appAccount: 'Nubank William', from: '2026-10-01' },
   {
     key: 'kesya', label: 'Nubank Késya', itemId: '940e0afb-50ce-4cbc-9893-1c51a727272e', appAccount: 'Nubank Késya', from: '2026-09-01',
-    ownerUserId: 'fb57cc01-a770-4d16-aeb5-e0e90a2ef7ee', userLabel: 'Késya',
+    ownerUserId: 'fb57cc01-a770-4d16-aeb5-e0e90a2ef7ee', userLabel: 'Késya', cardName: 'Nubank Késya',
   },
 ];
 
@@ -82,6 +83,29 @@ export function PluggyTestPanel() {
     }
   };
 
+  /** Cartão: simula (não grava) ou grava faturas e compras do cartão da conexão */
+  const runCard = async (c: Conn, apply: boolean) => {
+    setBusy(c.key + (apply ? ':capply' : ':csim'));
+    setOutput('');
+    try {
+      const res = await supabase.functions.invoke('pluggy-card-sync', {
+        body: { itemId: c.itemId, cardName: c.cardName, ownerUserId: c.ownerUserId, apply },
+      });
+      if (res.error) throw new Error(await errText(res.error));
+      setOutput(JSON.stringify(res.data, null, 2));
+      setSimulated(apply ? null : c.key + ':card');
+      if (apply) qc.invalidateQueries();
+    } catch (e) {
+      setOutput('ERRO: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const confirmCardApply = (c: Conn) => {
+    if (confirm(`Gravar o cartão "${c.cardName}" (faturas e compras) no app? Confira o resumo da simulação antes.`)) runCard(c, true);
+  };
+
   const confirmApply = (c: Conn) => {
     if (confirm(`Gravar as transações novas de "${c.label}" no app? Confira o resumo da simulação antes.`)) run(c, true);
   };
@@ -111,6 +135,18 @@ export function PluggyTestPanel() {
               {busy === c.key + ':card' && <Loader2 className="h-4 w-4 animate-spin" />}
               Ler cartão
             </Button>
+            {c.cardName && (
+              <>
+                <Button size="sm" variant="outline" disabled={!!busy} onClick={() => runCard(c, false)} className="gap-2">
+                  {busy === c.key + ':csim' && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Simular cartão
+                </Button>
+                <Button size="sm" disabled={!!busy || simulated !== c.key + ':card'} onClick={() => confirmCardApply(c)} className="gap-2">
+                  {busy === c.key + ':capply' && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Gravar cartão
+                </Button>
+              </>
+            )}
           </div>
         ))}
       </div>
