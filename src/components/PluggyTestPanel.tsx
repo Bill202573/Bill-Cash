@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Landmark, Loader2 } from 'lucide-react';
+import { Copy, Landmark, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
@@ -95,7 +96,20 @@ export function PluggyTestPanel() {
         ))}
       </div>
       {output && (
-        <pre className="text-xs bg-secondary/30 rounded-lg p-3 overflow-auto max-h-96 whitespace-pre-wrap">{output}</pre>
+        <>
+          <div className="flex justify-end mb-1">
+            <Button
+              size="sm" variant="ghost" className="gap-1 h-7 text-xs"
+              onClick={async () => {
+                try { await navigator.clipboard.writeText(output); toast.success('Resultado copiado'); }
+                catch { toast.error('Não foi possível copiar'); }
+              }}
+            >
+              <Copy className="h-3.5 w-3.5" /> Copiar resultado
+            </Button>
+          </div>
+          <pre className="text-xs bg-secondary/30 rounded-lg p-3 overflow-auto max-h-96 whitespace-pre-wrap">{output}</pre>
+        </>
       )}
     </div>
   );
