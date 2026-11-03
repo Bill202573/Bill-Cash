@@ -56,6 +56,24 @@ describe('computeCashFlow', () => {
     expect(lines.some(l => l.label === 'Light' && l.amount === 250)).toBe(true); // média 200/300
   });
 
+  it('conta com competência passada mas vencimento futuro entra no mês do vencimento, sem ser atraso', () => {
+    const fixed = [{ id: 'f1', name: 'Light', active: true, expected_amount: null, active_months: null, due_day: 23, due_month_offset: 1, keywords: null, sort_order: 0, category: 'x', account: null, notes: null }] as unknown as FixedBill[];
+    const payments = [{ id: 'p1', bill_id: 'f1', year_month: '2026-10', expected_amount: 267.11, due_date: '2026-11-23', paid_amount: null, paid_date: null }] as FixedBillPayment[];
+    const r = computeCashFlow({ ...base, fixedBills: fixed, payments });
+    const line = r.months[0].lines.fixed.find(l => l.amount === 267.11);
+    expect(line).toBeDefined();
+    expect(line?.note).toBeUndefined();
+  });
+
+  it('parcela mínima de dívida entra mês a mês até quitar', () => {
+    const debts = [{ id: 'd1', name: 'Parcelamento CEG', balance: 980.28, minimum_payment: 108.92 }] as never[];
+    const r = computeCashFlow({ ...base, months: 12, debts });
+    const total = r.months.reduce((s, m) => s + m.lines.fixed.filter(l => l.label.startsWith('Dívida')).reduce((a, l) => a + l.amount, 0), 0);
+    expect(total).toBeCloseTo(980.28, 2);
+    expect(r.months[8].lines.fixed.some(l => l.label.startsWith('Dívida'))).toBe(true);
+    expect(r.months[9].lines.fixed.some(l => l.label.startsWith('Dívida'))).toBe(false);
+  });
+
   it('detecta recorrentes (3 de 4 meses) e separa o resto como variável', () => {
     const t = [
       ...['2026-07', '2026-08', '2026-09', '2026-10'].flatMap((m, i) => [

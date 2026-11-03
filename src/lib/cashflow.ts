@@ -190,7 +190,10 @@ export function computeCashFlow(input: CashFlowInput): CashFlowResult {
     const amount = Number(p.expected_amount ?? 0);
     if (amount <= 0 || !billAppliesToMonth(bill, p.year_month)) continue;
     handled.add(payKey(bill.id, p.year_month));
-    add(start, 'fixed', `${bill.name} — ${p.year_month} em atraso`, amount, 'em atraso');
+    const due = resolveDueDate(bill, p, p.year_month);
+    const dueMonth = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}`;
+    if (dueMonth >= start) add(dueMonth, 'fixed', `${bill.name} — ref. ${p.year_month}`, amount);
+    else add(start, 'fixed', `${bill.name} — ${p.year_month} em atraso`, amount, 'em atraso');
   }
 
   for (const bill of input.fixedBills) {
