@@ -1,4 +1,4 @@
-import { Users, User } from 'lucide-react';
+import { Building2, Users, User } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -9,10 +9,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useFamilyScope } from '@/contexts/FamilyContext';
 import { useFamily } from '@/hooks/useFamily';
+import { useEntities } from '@/hooks/useEntities';
 import { useAuth } from '@/hooks/useAuth';
 
 export function ScopeSelector() {
-  const { scope, setScope, selectedMemberId, setSelectedMemberId, getDisplayName } = useFamilyScope();
+  const { scope, setScope, selectedMemberId, setSelectedMemberId, selectedEntityId, setSelectedEntityId, getDisplayName } = useFamilyScope();
+  const { data: entities = [] } = useEntities();
   const { user } = useAuth();
   const { data: family, isLoading } = useFamily();
 
@@ -25,7 +27,9 @@ export function ScopeSelector() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-secondary/50 transition-colors text-sm max-w-xs w-full justify-start">
-          {scope === 'personal' ? (
+          {scope === 'entity' ? (
+            <Building2 className="h-4 w-4 text-primary flex-shrink-0" />
+          ) : scope === 'personal' ? (
             <User className="h-4 w-4 text-primary flex-shrink-0" />
           ) : (
             <Users className="h-4 w-4 text-primary flex-shrink-0" />
@@ -47,7 +51,7 @@ export function ScopeSelector() {
             {/* Opção: Pessoal */}
             <DropdownMenuCheckboxItem
               checked={scope === 'personal'}
-              onCheckedChange={() => { setScope('personal'); setSelectedMemberId(null); }}
+              onCheckedChange={() => { setScope('personal'); setSelectedMemberId(null); setSelectedEntityId(null); }}
               className="cursor-pointer"
             >
               <User className="h-4 w-4 mr-2" />
@@ -67,7 +71,7 @@ export function ScopeSelector() {
                     <DropdownMenuCheckboxItem
                       key={member.id}
                       checked={scope === 'family' && selectedMemberId === member.user_id}
-                      onCheckedChange={() => { setScope('family'); setSelectedMemberId(member.user_id); }}
+                      onCheckedChange={() => { setScope('family'); setSelectedMemberId(member.user_id); setSelectedEntityId(null); }}
                       className="cursor-pointer"
                     >
                       <User className="h-4 w-4 mr-2" />
@@ -83,7 +87,7 @@ export function ScopeSelector() {
             {/* Opção: Família (agregado de todos os membros) */}
             <DropdownMenuCheckboxItem
               checked={scope === 'family' && !selectedMemberId}
-              onCheckedChange={() => { setScope('family'); setSelectedMemberId(null); }}
+              onCheckedChange={() => { setScope('family'); setSelectedMemberId(null); setSelectedEntityId(null); }}
               className="cursor-pointer"
             >
               <Users className="h-4 w-4 mr-2" />
@@ -91,9 +95,31 @@ export function ScopeSelector() {
               <span className="ml-auto text-xs text-muted-foreground">(Família)</span>
             </DropdownMenuCheckboxItem>
 
+            {/* Empresas: perfis separados, fora das somas da família */}
+            {entities.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <div className="px-2 pt-1 text-[10px] uppercase tracking-wide text-muted-foreground">Empresas (separadas da família)</div>
+                {entities.map(en => (
+                  <DropdownMenuCheckboxItem
+                    key={en.id}
+                    checked={scope === 'entity' && selectedEntityId === en.id}
+                    onCheckedChange={() => { setScope('entity'); setSelectedMemberId(null); setSelectedEntityId(en.id); }}
+                    className="cursor-pointer"
+                  >
+                    <Building2 className="h-4 w-4 mr-2" />
+                    <span>{en.name}</span>
+                    <span className="ml-auto text-xs text-muted-foreground">(PJ)</span>
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </>
+            )}
+
             <DropdownMenuSeparator />
             <div className="px-2 py-1.5 text-xs text-muted-foreground">
-              {scope === 'personal'
+              {scope === 'entity'
+                ? `Mostrando só a empresa ${getDisplayName()}, separada da família`
+                : scope === 'personal'
                 ? 'Mostrando suas despesas pessoais'
                 : selectedMemberId
                   ? `Mostrando despesas de ${getDisplayName()}`

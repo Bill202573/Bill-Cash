@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useFamilyScope } from '@/contexts/FamilyContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -207,14 +208,19 @@ export function calculateLateFee(
 // ─── Hooks ───────────────────────────────────────────────────────────────────
 
 export function useFixedBills() {
+  const { scope, getFilterUserId } = useFamilyScope();
+  const entityId = scope === 'entity' ? getFilterUserId() : null;
   return useQuery({
-    queryKey: ['fixed_bills'],
+    queryKey: ['fixed_bills', entityId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from('fixed_bills')
         .select('*')
         .order('sort_order')
         .order('name');
+      // Perfil de empresa: só as contas dela (as da família não aparecem lá)
+      if (entityId) q = q.eq('user_id', entityId);
+      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as FixedBill[];
     },

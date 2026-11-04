@@ -1,14 +1,18 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useFamily } from '@/hooks/useFamily';
+import { useEntities } from '@/hooks/useEntities';
 
-export type ScopeType = 'personal' | 'family';
+export type ScopeType = 'personal' | 'family' | 'entity';
 
 interface FamilyScopeContextType {
   scope: ScopeType;
   setScope: (scope: ScopeType) => void;
   selectedMemberId: string | null; // UUID do membro selecionado
   setSelectedMemberId: (id: string | null) => void;
+  /** Perfil de empresa selecionado (scope 'entity'): dados separados da família */
+  selectedEntityId: string | null;
+  setSelectedEntityId: (id: string | null) => void;
   // Helper: retorna o UUID do usuário a usar (current user ou spouse)
   getFilterUserId: () => string | null;
   // Helper: retorna quem está sendo visualizado
@@ -20,18 +24,23 @@ const FamilyScopeContext = createContext<FamilyScopeContextType | undefined>(und
 export function FamilyScopeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { data: family } = useFamily();
+  const { data: entities = [] } = useEntities();
   const [scope, setScope] = useState<ScopeType>('personal');
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
 
   // Reset ao fazer logout
   useEffect(() => {
     if (!user) {
       setScope('personal');
       setSelectedMemberId(null);
+      setSelectedEntityId(null);
     }
   }, [user?.id]);
 
   const getFilterUserId = (): string | null => {
+    // Empresa: os dados dela ficam sob o id da entidade (nunca entram nas somas da família)
+    if (scope === 'entity') return selectedEntityId;
     if (scope === 'personal') {
       return user?.id ?? null;
     }
@@ -42,6 +51,7 @@ export function FamilyScopeProvider({ children }: { children: ReactNode }) {
   };
 
   const getDisplayName = (): string => {
+    if (scope === 'entity') return entities.find(e => e.id === selectedEntityId)?.name ?? 'Empresa';
     if (scope === 'personal') {
       return user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Você';
     }
@@ -57,6 +67,8 @@ export function FamilyScopeProvider({ children }: { children: ReactNode }) {
     setScope,
     selectedMemberId,
     setSelectedMemberId,
+    selectedEntityId,
+    setSelectedEntityId,
     getFilterUserId,
     getDisplayName,
   };

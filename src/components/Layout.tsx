@@ -10,6 +10,7 @@ import { ProfileMenu } from './ProfileMenu';
 import { ScopeSelector } from './ScopeSelector';
 import { StickyNote } from './StickyNote';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useFamilyScope } from '@/contexts/FamilyContext';
 
 interface LayoutProps { children: ReactNode }
 
@@ -33,6 +34,7 @@ export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const { scope: viewScope, getDisplayName } = useFamilyScope();
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -143,6 +145,11 @@ export function Layout({ children }: LayoutProps) {
 
       {/* ── Main content ── */}
       <main className="flex-1 min-w-0 pt-14 lg:pt-0">
+        {viewScope === 'entity' && (
+          <div className="bg-sky-600 text-white text-xs sm:text-sm px-4 py-1.5 text-center">
+            Perfil da empresa <strong>{getDisplayName()}</strong> — dados separados da família
+          </div>
+        )}
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
           {children}
         </div>
