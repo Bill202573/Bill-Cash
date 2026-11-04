@@ -65,6 +65,13 @@ describe('computeCashFlow', () => {
     expect(line?.note).toBeUndefined();
   });
 
+  it('conta fixa com active_until (parcelas) não projeta meses depois da última parcela', () => {
+    const fixed = [{ id: 'f1', name: 'R&S', active: true, expected_amount: 88.84, active_months: null, active_since: '2026-11', active_until: '2027-05', due_day: 6, due_month_offset: 0, keywords: null, sort_order: 0, category: 'Serviços', account: null, notes: null }] as unknown as FixedBill[];
+    const r = computeCashFlow({ ...base, months: 12, fixedBills: fixed });
+    const meses = r.months.filter(m => m.lines.fixed.some(l => l.label === 'R&S')).map(m => m.month);
+    expect(meses).toEqual(['2026-11', '2026-12', '2027-01', '2027-02', '2027-03', '2027-04', '2027-05']);
+  });
+
   it('parcela mínima de dívida entra mês a mês até quitar', () => {
     const debts = [{ id: 'd1', name: 'Parcelamento CEG', balance: 980.28, minimum_payment: 108.92 }] as never[];
     const r = computeCashFlow({ ...base, months: 12, debts });

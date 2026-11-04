@@ -66,6 +66,7 @@ const PERSONAL_RULES: Array<{ patterns: string[]; category: string; subcategory?
   { patterns: ['mirella ribeiro nogueira'], category: 'Família', subcategory: 'Mirella' },
   { patterns: ['joão guilherme ribeiro nogueira'], category: 'Família', subcategory: 'João Guilherme' },
   { patterns: ['késya guimarães ribeiro nogueira'], category: 'Família', subcategory: 'Késya' },
+  { patterns: ['revisao de dividas'], category: 'Serviços', subcategory: 'Advocatícios' },
 ];
 
 export function detectCategoryDetailed(description: string): { category: string; subcategory?: string } {

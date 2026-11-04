@@ -15,6 +15,8 @@ export interface FixedBill {
   active_year?: number | null;
   /** Mês (YYYY-MM) a partir do qual a conta passa a existir/ser rastreada. null = sem limite inferior */
   active_since?: string | null;
+  /** Último mês (YYYY-MM) em que a conta existe (ex.: honorários em 7 parcelas). null = sem limite superior */
+  active_until?: string | null;
   due_day: number;
   due_month_offset: number; // 0 = vence no mesmo mês, 1 = vence no mês seguinte (ex: Light)
   competence_month?: string;     // YYYY-MM: mês a que a conta se refere (ex: janeiro)
@@ -68,6 +70,7 @@ export function billAppliesToMonth(bill: FixedBill, yearMonth: string): boolean 
     if (y !== bill.active_year) return false;
   }
   if (bill.active_since && yearMonth < bill.active_since) return false;
+  if (bill.active_until && yearMonth > bill.active_until) return false;
   if (bill.active_months === null || bill.active_months.length === 0) return true;
   const m = parseInt(yearMonth.slice(5), 10);
   return bill.active_months.includes(m);
