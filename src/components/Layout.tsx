@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { ProfileMenu } from './ProfileMenu';
 import { ScopeSelector } from './ScopeSelector';
+import { StickyNote } from './StickyNote';
 import { useTheme } from '@/contexts/ThemeContext';
 
 interface LayoutProps { children: ReactNode }
@@ -146,6 +147,9 @@ export function Layout({ children }: LayoutProps) {
           {children}
         </div>
       </main>
+
+      {/* Post-it amarelo flutuante com os lembretes, visível em todas as telas */}
+      <StickyNote />
     </div>
   );
 }

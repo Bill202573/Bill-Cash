@@ -23,7 +23,7 @@ const todayStr = () => {
 const daysUntil = (date: string) =>
   Math.round((new Date(date + 'T12:00:00').getTime() - new Date(todayStr() + 'T12:00:00').getTime()) / 86_400_000);
 
-function dueChip(date: string): { text: string; cls: string } {
+export function dueChip(date: string): { text: string; cls: string } {
   const d = daysUntil(date);
   const short = new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   if (d < 0) return { text: `atrasado ${-d}d (${short})`, cls: 'bg-expense/15 text-expense' };
