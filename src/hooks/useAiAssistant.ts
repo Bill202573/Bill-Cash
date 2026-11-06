@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
 
 const SUPABASE_URL      = 'https://jzonnecthimbvdeutsft.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_GFCKtO3G2YwiweQ3S5mKaQ_Dioakamh';
@@ -34,11 +35,16 @@ export function useAiAssistant() {
     setLoading(true);
 
     try {
+      // A função exige usuário logado: envia o token da sessão (a chave pública sozinha é recusada).
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) throw new Error('Sessão expirada. Entre novamente no app.');
       const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-assistant`, {
         method:  'POST',
         headers: {
           'Content-Type':  'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${token}`,
+          'apikey':        SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({ message: text, history: apiHistory }),
       });
