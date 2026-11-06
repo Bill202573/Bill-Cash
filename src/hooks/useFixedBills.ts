@@ -220,6 +220,12 @@ export function useFixedBills() {
         .order('name');
       // Perfil de empresa: só as contas dela (as da família não aparecem lá)
       if (entityId) q = q.eq('user_id', entityId);
+      else {
+        // Perfis da família: as contas das empresas (ex.: Stelle) ficam de fora. Contas antigas sem dono (user_id nulo) continuam da família.
+        const { data: ents } = await supabase.from('entities').select('id');
+        const ids = (ents ?? []).map((e: { id: string }) => e.id);
+        if (ids.length) q = q.or(`user_id.is.null,user_id.not.in.(${ids.join(',')})`);
+      }
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as FixedBill[];
