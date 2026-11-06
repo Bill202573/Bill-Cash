@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useAiConfig, useUpdateAiConfig } from '@/hooks/useAiConfig';
 import { PluggyTestPanel } from '@/components/PluggyTestPanel';
+import { WhatsAppPanel } from '@/components/WhatsAppPanel';
 import { toast } from 'sonner';
 
 const DEFAULT_PROMPT = `Você é o assistente financeiro pessoal do Bill Cash, app de controle financeiro de William Nogueira.
@@ -116,6 +117,8 @@ export default function Configuracoes() {
           </Button>
         </div>
       </div>
+
+      <WhatsAppPanel />
 
       <PluggyTestPanel />
 
