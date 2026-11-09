@@ -92,12 +92,18 @@ export function computeFinancialSnapshot(
   debts:              Debt[],
   investments:        Investment[] = [],
 ): FinancialSnapshot {
-  const totalCash = accounts.reduce(
+  // Contas do tipo "investimento" (ex.: Stelle Investimento) contam como INVESTIDO, não como caixa
+  const isInvestmentAccount = (a: Account) => a.type === 'investment';
+  const totalCash = accounts.filter(a => !isInvestmentAccount(a)).reduce(
+    (sum, acc) => sum + computeAccountBalance(acc, transactions, internalTransfers).current,
+    0,
+  );
+  const investedInAccounts = accounts.filter(isInvestmentAccount).reduce(
     (sum, acc) => sum + computeAccountBalance(acc, transactions, internalTransfers).current,
     0,
   );
 
-  const totalInvested = investments.reduce((sum, inv) => sum + Number(inv.current_balance ?? 0), 0);
+  const totalInvested = investments.reduce((sum, inv) => sum + Number(inv.current_balance ?? 0), 0) + investedInAccounts;
 
   // Faturas de cartão a pagar: não reconciliadas
   const openOrClosedBills = cardBills.filter(b => b.status !== 'reconciled');

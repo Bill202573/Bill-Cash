@@ -35,6 +35,8 @@ export function FinancialSnapshot() {
     [checking, transactions, internalTransfers],
   );
 
+  const investAccounts = useMemo(() => accounts.filter(a => a.type === 'investment').length, [accounts]);
+
   const isPositive = snap.netWorth >= 0;
 
   return (
@@ -75,7 +77,8 @@ export function FinancialSnapshot() {
           </div>
           <p className="text-xl font-display font-bold text-primary">+{fmt(snap.totalInvested)}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {investments.length} aplicaç{investments.length === 1 ? 'ão' : 'ões'} — ver em Planos
+            {investments.length + investAccounts} aplicaç{investments.length + investAccounts === 1 ? 'ão' : 'ões'}
+            {investAccounts > 0 ? ` (${investAccounts} conta${investAccounts > 1 ? 's' : ''} de investimento)` : ' — ver em Planos'}
           </p>
         </div>
 

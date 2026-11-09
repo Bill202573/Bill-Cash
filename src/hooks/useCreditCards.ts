@@ -29,7 +29,22 @@ export function useCreditCards() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []) as CreditCard[];
+      const cards = (data ?? []) as CreditCard[];
+      if (!cards.length) return cards;
+
+      // current_bill (campo antigo) nunca foi mantido pela sincronizacao: o valor real a pagar vem das faturas
+      // abertas/fechadas ainda nao quitadas (total - pago), para o painel, os cartoes e os alertas de limite
+      const { data: bills } = await supabase
+        .from('card_bills')
+        .select('card_id,total_amount,paid_amount,status')
+        .in('card_id', cards.map(c => c.id))
+        .neq('status', 'reconciled');
+      const owed = new Map<string, number>();
+      for (const b of bills ?? []) {
+        const v = Math.max(Number(b.total_amount ?? 0) - Number(b.paid_amount ?? 0), 0);
+        owed.set(b.card_id, (owed.get(b.card_id) ?? 0) + v);
+      }
+      return cards.map(c => ({ ...c, current_bill: Math.round((owed.get(c.id) ?? 0) * 100) / 100 }));
     },
     enabled: !!user?.id,
   });

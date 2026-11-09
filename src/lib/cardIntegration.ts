@@ -95,8 +95,10 @@ export function mergeCardExpensesAsTransactions(
   const cardNameById = new Map(cards.map(c => [c.id, c.name]));
   const billsById    = new Map(bills.map(b => [b.id, b]));
 
+  // Só despesas dos cartões do perfil selecionado (a lista de despesas vem de todos os cartões;
+  // sem este filtro as compras da família apareciam no perfil da empresa e vice-versa)
   const cardAsTransactions: Transaction[] = cardExpenses
-    .filter(e => e.status === 'confirmed')
+    .filter(e => e.status === 'confirmed' && cardNameById.has(e.card_id))
     .map(e => cardExpenseToTransaction(
       e,
       cardNameById.get(e.card_id) ?? 'Cartão',
