@@ -23,6 +23,7 @@ import Plans from '@/pages/Plans';
 import CashFlow from '@/pages/CashFlow';
 import Assistente from '@/pages/Assistente';
 import Configuracoes from '@/pages/Configuracoes';
+import Documents from '@/pages/Documents';
 import NotFound from '@/pages/NotFound';
 
 const queryClient = new QueryClient({
@@ -165,6 +166,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Layout><Assistente    /></Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/documentos"
+            element={
+              <ProtectedRoute>
+                <Layout><ErrorBoundary><Documents /></ErrorBoundary></Layout>
               </ProtectedRoute>
             }
           />
