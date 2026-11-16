@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ArrowLeftRight, CreditCard, Target,
   Lightbulb, Wallet, FileText, Bot, Settings, Menu, X, Tag,
-  Sun, Moon, Sparkles, CalendarRange, FolderOpen,
+  Sun, Moon, Sparkles, CalendarRange, FolderOpen, CalendarCheck,
 } from 'lucide-react';
 import { ProfileMenu } from './ProfileMenu';
 import { ScopeSelector } from './ScopeSelector';
@@ -21,6 +21,7 @@ const NAV = [
   { path: '/fluxo-de-caixa', icon: CalendarRange, label: 'Fluxo de Caixa' },
   { path: '/cartoes',      icon: CreditCard,      label: 'Cartões'       },
   { path: '/categorias',   icon: Tag,             label: 'Categorias'    },
+  { path: '/contas-a-pagar', icon: CalendarCheck, label: 'Contas a Pagar' },
   { path: '/contas-fixas', icon: FileText,        label: 'Contas Fixas'  },
   { path: '/dividas',      icon: CreditCard,      label: 'Dívidas'       },
   { path: '/documentos',   icon: FolderOpen,      label: 'Documentos'    },

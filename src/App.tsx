@@ -24,6 +24,7 @@ import CashFlow from '@/pages/CashFlow';
 import Assistente from '@/pages/Assistente';
 import Configuracoes from '@/pages/Configuracoes';
 import Documents from '@/pages/Documents';
+import Payables from '@/pages/Payables';
 import NotFound from '@/pages/NotFound';
 
 const queryClient = new QueryClient({
@@ -166,6 +167,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Layout><Assistente    /></Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/contas-a-pagar"
+            element={
+              <ProtectedRoute>
+                <Layout><ErrorBoundary><Payables /></ErrorBoundary></Layout>
               </ProtectedRoute>
             }
           />
